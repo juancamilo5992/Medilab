@@ -13,8 +13,11 @@ self.addEventListener('activate', e => {
 });
 
 // La app va primero a la red y cae al caché cuando no hay conexión.
+// Las llamadas a Firebase/Firestore se dejan pasar tal cual: el propio SDK
+// ya maneja su caché y reconexión, y no deben pasar por este caché de archivos.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then(res => {
