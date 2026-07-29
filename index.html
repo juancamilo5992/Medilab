@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="description" content="Seguimiento de salud familiar: citas, medicamentos, exámenes, nutrición y calendario. Funciona sin conexión.">
+<title>Salud Familiar</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Salud Familiar">
+<style>
+/* ============ VARIABLES Y BASE ============ */
+:root{
+  --azul:#2563eb; --azul-suave:#e8effd;
+  --naranja:#ea7317; --naranja-suave:#fdf0e3;
+  --verde:#16a34a; --verde-suave:#e6f6ec;
+  --rojo:#dc2626; --rojo-suave:#fdeaea;
+  --morado:#7c3aed; --morado-suave:#f1eafe;
+  --fondo:#f4f6fa; --tarjeta:#ffffff;
+  --texto:#1f2937; --tenue:#6b7280; --borde:#e3e8ef;
+  --sombra:0 1px 2px rgba(16,24,40,.06), 0 4px 12px rgba(16,24,40,.06);
+  --radio:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif;
+  background:var(--fondo); color:var(--texto); font-size:15px; line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3,h4{margin:0 0 .6rem; line-height:1.25}
+h2{font-size:1.3rem} h3{font-size:1.05rem}
+a{color:var(--azul)}
+:focus-visible{outline:3px solid #93b4fd; outline-offset:2px}
+
+/* ============ CABECERA ============ */
+header{
+  background:var(--tarjeta); border-bottom:1px solid var(--borde);
+  padding:.7rem 1rem; display:flex; flex-wrap:wrap; gap:.6rem;
+  align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:50;
+}
+.marca{font-weight:700; font-size:1.15rem; display:flex; align-items:center; gap:.45rem; white-space:nowrap}
+.zona-derecha{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; flex:1; justify-content:flex-end}
+#busquedaGlobal{min-width:160px; flex:1; max-width:280px}
+
+/* ============ NAVEGACIÓN ============ */
+nav{
+  background:var(--tarjeta); border-bottom:1px solid var(--borde);
+  display:flex; gap:.25rem; padding:0 .6rem; overflow-x:auto;
+  position:sticky; top:57px; z-index:49; -webkit-overflow-scrolling:touch;
+}
+nav a{
+  padding:.65rem .8rem; text-decoration:none; color:var(--tenue);
+  font-weight:600; font-size:.9rem; white-space:nowrap;
+  border-bottom:3px solid transparent;
+}
+nav a:hover{color:var(--texto)}
+nav a.activa{color:var(--azul); border-bottom-color:var(--azul)}
+
+main{padding:1rem; max-width:1180px; margin:0 auto}
+.vista{display:none}
+.vista.activa{display:block}
+
+/* ============ TARJETAS Y REJILLAS ============ */
+.tarjeta{
+  background:var(--tarjeta); border:1px solid var(--borde);
+  border-radius:var(--radio); box-shadow:var(--sombra);
+  padding:1rem; margin-bottom:1rem;
+}
+.rejilla{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.entre{display:flex; justify-content:space-between; align-items:center; gap:.6rem; flex-wrap:wrap}
+.fila{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
+.tenue{color:var(--tenue); font-size:.86rem}
+.vacio{color:var(--tenue); text-align:center; padding:1.6rem 1rem; font-size:.92rem}
+
+/* ============ BOTONES ============ */
+button, .boton{
+  font:inherit; font-weight:600; font-size:.88rem; cursor:pointer;
+  border:1px solid var(--borde); background:var(--tarjeta); color:var(--texto);
+  padding:.5rem .85rem; border-radius:9px; transition:filter .15s, background .15s;
+  display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+}
+button:hover, .boton:hover{filter:brightness(.97)}
+button:active{transform:translateY(1px)}
+.btn-primario{background:var(--azul); border-color:var(--azul); color:#fff}
+.btn-verde{background:var(--verde); border-color:var(--verde); color:#fff}
+.btn-naranja{background:var(--naranja); border-color:var(--naranja); color:#fff}
+.btn-peligro{background:var(--rojo); border-color:var(--rojo); color:#fff}
+.btn-mini{padding:.3rem .5rem; font-size:.8rem; border-radius:7px}
+button[disabled]{opacity:.5; cursor:not-allowed}
+
+/* ============ FORMULARIOS ============ */
+label{display:block; font-size:.82rem; font-weight:600; color:var(--tenue); margin-bottom:.25rem}
+input,select,textarea{
+  font:inherit; font-size:.92rem; width:100%; padding:.5rem .6rem;
+  border:1px solid var(--borde); border-radius:9px; background:#fff; color:var(--texto);
+}
+textarea{min-height:80px; resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--azul); outline:none; box-shadow:0 0 0 3px var(--azul-suave)}
+.campo{margin-bottom:.75rem}
+.campos-2{display:grid; grid-template-columns:1fr 1fr; gap:.75rem}
+@media(max-width:520px){.campos-2{grid-template-columns:1fr}}
+.error-campo{border-color:var(--rojo)!important}
+.mensaje-error{color:var(--rojo); font-size:.82rem; margin:.4rem 0 0}
+fieldset{border:1px solid var(--borde); border-radius:10px; padding:.8rem; margin:0 0 .9rem}
+legend{font-size:.82rem; font-weight:700; color:var(--tenue); padding:0 .35rem}
+
+/* ============ TABLAS ============ */
+.tabla-envoltura{overflow-x:auto; -webkit-overflow-scrolling:touch}
+table{width:100%; border-collapse:collapse; font-size:.88rem}
+th,td{padding:.55rem .6rem; text-align:left; border-bottom:1px solid var(--borde); vertical-align:top}
+th{font-size:.76rem; text-transform:uppercase; letter-spacing:.03em; color:var(--tenue); white-space:nowrap}
+th[data-campo]{cursor:pointer; user-select:none}
+th[data-campo]:hover{color:var(--texto)}
+tbody tr:hover{background:#fafbfd}
+td.acciones{white-space:nowrap}
+
+/* ============ ETIQUETAS ============ */
+.etq{display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.74rem; font-weight:700}
+.etq-azul{background:var(--azul-suave); color:#1d4ed8}
+.etq-naranja{background:var(--naranja-suave); color:#b45309}
+.etq-verde{background:var(--verde-suave); color:#15803d}
+.etq-roja{background:var(--rojo-suave); color:#b91c1c}
+.etq-gris{background:#eef1f6; color:var(--tenue)}
+.etq-morada{background:var(--morado-suave); color:#6d28d9}
+
+/* ============ MODAL ============ */
+#fondoModal{
+  position:fixed; inset:0; background:rgba(17,24,39,.5); z-index:100;
+  display:none; align-items:flex-start; justify-content:center; padding:1rem; overflow-y:auto;
+}
+#fondoModal.abierto{display:flex}
+#modal{
+  background:var(--tarjeta); border-radius:14px; width:100%; max-width:620px;
+  margin:auto; box-shadow:0 20px 50px rgba(16,24,40,.25); animation:aparecer .16s ease-out;
+}
+#modal.ancho{max-width:900px}
+@keyframes aparecer{from{opacity:0; transform:translateY(-8px)}to{opacity:1; transform:none}}
+.modal-cabecera{display:flex; justify-content:space-between; align-items:center; padding:.9rem 1rem; border-bottom:1px solid var(--borde)}
+.modal-cabecera h3{margin:0}
+.modal-cuerpo{padding:1rem; max-height:70vh; overflow-y:auto}
+.modal-pie{padding:.8rem 1rem; border-top:1px solid var(--borde); display:flex; justify-content:flex-end; gap:.5rem}
+.cerrar{background:none; border:none; font-size:1.3rem; line-height:1; padding:.2rem .4rem; color:var(--tenue)}
+
+/* ============ AVISO / TOAST ============ */
+#toast{
+  position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%) translateY(140%);
+  background:#111827; color:#fff; padding:.7rem 1.1rem; border-radius:10px;
+  font-size:.9rem; z-index:200; transition:transform .25s ease; max-width:90vw; text-align:center;
+}
+#toast.visible{transform:translateX(-50%) translateY(0)}
+
+/* ============ CALENDARIO ============ */
+.cal-cabecera{display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap; margin-bottom:.8rem}
+.cal-titulo{font-weight:700; font-size:1.05rem; text-transform:capitalize; min-width:180px; text-align:center}
+.cal-rejilla{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+.cal-dia-nombre{text-align:center; font-size:.72rem; font-weight:700; color:var(--tenue); text-transform:uppercase; padding:.3rem 0}
+.cal-celda{
+  min-height:92px; border:1px solid var(--borde); border-radius:9px; padding:.3rem;
+  background:#fff; display:flex; flex-direction:column; gap:2px; overflow:hidden;
+}
+.cal-celda.fuera{background:#fafbfd; opacity:.55}
+.cal-celda.hoy{border-color:var(--azul); box-shadow:0 0 0 2px var(--azul-suave)}
+.cal-num{font-size:.76rem; font-weight:700; color:var(--tenue)}
+.cal-evento{
+  font-size:.72rem; padding:.14rem .35rem; border-radius:6px; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; border:none; width:100%; text-align:left;
+}
+.ev-cita{background:var(--azul)} .ev-examen{background:var(--naranja)} .ev-med{background:var(--verde)}
+.leyenda{display:flex; gap:.9rem; flex-wrap:wrap; font-size:.82rem; margin-top:.8rem; color:var(--tenue)}
+.punto{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:.3rem; vertical-align:-1px}
+@media(max-width:640px){
+  .cal-celda{min-height:66px; padding:.2rem}
+  .cal-evento{font-size:.62rem}
+}
+
+/* ============ PIN ============ */
+#pantallaPin{
+  position:fixed; inset:0; background:linear-gradient(160deg,#2563eb,#1e40af); z-index:300;
+  display:none; align-items:center; justify-content:center; padding:1rem;
+}
+#pantallaPin.abierta{display:flex}
+.caja-pin{background:#fff; border-radius:16px; padding:1.6rem; width:100%; max-width:330px; text-align:center}
+.caja-pin input{text-align:center; letter-spacing:.6em; font-size:1.4rem; padding:.6rem}
+
+/* ============ MEDICAMENTOS / ADHERENCIA ============ */
+.toma{display:flex; align-items:center; gap:.5rem; padding:.35rem .5rem; border:1px solid var(--borde); border-radius:8px; margin-bottom:.35rem; background:#fff}
+.toma input[type=checkbox]{width:18px; height:18px; margin:0; accent-color:var(--verde)}
+.toma.hecha{background:var(--verde-suave); border-color:#bbe5c8}
+.barra{height:7px; background:#eef1f6; border-radius:99px; overflow:hidden; margin-top:.4rem}
+.barra > span{display:block; height:100%; background:var(--verde)}
+
+/* ============ IMPRESIÓN ============ */
+#areaImpresion{display:none}
+@media print{
+  body{background:#fff}
+  header, nav, main, #fondoModal, #toast, #pantallaPin{display:none!important}
+  #areaImpresion{display:block!important; padding:0; color:#000; font-size:12pt}
+  #areaImpresion h1{font-size:18pt; margin-bottom:.2rem}
+  #areaImpresion .meta-impresion{font-size:10pt; margin-bottom:1rem; border-bottom:1px solid #000; padding-bottom:.5rem}
+  #areaImpresion table{width:100%; border-collapse:collapse; font-size:10pt}
+  #areaImpresion th, #areaImpresion td{border:1px solid #444; padding:6px; vertical-align:top; background:#fff!important; color:#000}
+  #areaImpresion th{background:#eee!important; font-weight:700; text-transform:none}
+  #areaImpresion tr{page-break-inside:avoid}
+  @page{margin:1.5cm}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ PANTALLA DE PIN ============ -->
+<div id="pantallaPin" role="dialog" aria-modal="true" aria-label="Acceso con PIN">
+  <div class="caja-pin">
+    <div style="font-size:2.2rem">🔒</div>
+    <h2>Salud Familiar</h2>
+    <p class="tenue">Escribe tu PIN de 4 dígitos para entrar.</p>
+    <input id="entradaPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="PIN">
+    <p id="errorPin" class="mensaje-error" style="display:none">PIN incorrecto. Intenta de nuevo.</p>
+    <button class="btn-primario" id="btnEntrarPin" style="width:100%; justify-content:center; margin-top:.8rem">Entrar</button>
+  </div>
+</div>
+
+<!-- ============ CABECERA ============ -->
+<header>
+  <div class="marca">🏥 Salud Familiar</div>
+  <div class="zona-derecha">
+    <input id="busquedaGlobal" type="search" placeholder="Buscar en todo el perfil…" aria-label="Búsqueda global">
+    <select id="selectorPerfil" aria-label="Perfil activo" style="width:auto; min-width:150px"></select>
+    <button id="btnNuevoPerfil" class="btn-primario" title="Agregar miembro de la familia">+ Miembro</button>
+  </div>
+</header>
+
+<!-- ============ NAVEGACIÓN (mini-router por hash) ============ -->
+<nav id="menu">
+  <a href="#dashboard">🏠 Panel</a>
+  <a href="#citas">🩺 Citas</a>
+  <a href="#medicamentos">💊 Medicamentos</a>
+  <a href="#examenes">🧪 Exámenes</a>
+  <a href="#calendario">📅 Calendario</a>
+  <a href="#directorio">📞 Directorio</a>
+  <a href="#nutricion">🥗 Nutrición</a>
+  <a href="#configuracion">⚙️ Configuración</a>
+</nav>
+
+<main>
+  <div id="sinPerfiles" class="tarjeta" style="display:none; text-align:center">
+    <div style="font-size:2.4rem">👪</div>
+    <h2>Empieza por crear un perfil</h2>
+    <p class="tenue">Cada miembro de la familia tiene su propio historial de citas, medicamentos, exámenes y planes de alimentación.</p>
+    <button class="btn-primario" onclick="formularioPerfil()">Crear el primer perfil</button>
+  </div>
+
+  <div id="contenido">
+    <section id="vista-busqueda" class="vista"></section>
+    <section id="vista-dashboard" class="vista"></section>
+    <section id="vista-citas" class="vista"></section>
+    <section id="vista-medicamentos" class="vista"></section>
+    <section id="vista-examenes" class="vista"></section>
+    <section id="vista-calendario" class="vista"></section>
+    <section id="vista-directorio" class="vista"></section>
+    <section id="vista-nutricion" class="vista"></section>
+    <section id="vista-configuracion" class="vista"></section>
+  </div>
+</main>
+
+<!-- ============ MODAL ============ -->
+<div id="fondoModal" role="dialog" aria-modal="true">
+  <div id="modal">
+    <div class="modal-cabecera">
+      <h3 id="tituloModal"></h3>
+      <button class="cerrar" onclick="cerrarModal()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-cuerpo" id="cuerpoModal"></div>
+    <div class="modal-pie" id="pieModal"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="areaImpresion"></div>
+
+<script>
+/* =====================================================================
+   SALUD FAMILIAR — aplicación de una sola página, sin dependencias.
+   Todo se guarda en localStorage bajo la clave "saludFamiliarData".
+   ===================================================================== */
+
+const CLAVE = 'saludFamiliarData';
+const CLAVE_RESPALDO = 'saludFamiliarData_respaldo';
+const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+let DB = null;             // base de datos completa en memoria
+let perfilActivoId = null; // id del perfil seleccionado
+let temporizadorRecordatorios = null;
+let eventoInstalacion = null;
+
+/* ---------- utilidades ---------- */
+const $  = (sel, ctx = document) => ctx.querySelector(sel);
+const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+
+function fechaLegible(iso){
+  if (!iso) return '—';
+  const [a, m, d] = iso.split('-').map(Number);
+  if (!a || !m || !d) return iso;
+  return `${String(d).padStart(2,'0')} ${MESES[m-1].slice(0,3)} ${a}`;
+}
+function horaLegible(h){
+  if (!h) return '';
+  const [hh, mm] = h.split(':').map(Number);
+  const suf = hh >= 12 ? 'p.m.' : 'a.m.';
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${h12}:${String(mm).padStart(2,'0')} ${suf}`;
+}
+function diasEntre(isoA, isoB){
+  return Math.round((new Date(isoB + 'T00:00') - new Date(isoA + 'T00:00')) / 86400000);
+}
+function edad(fechaNac){
+  if (!fechaNac) return null;
+  const n = new Date(fechaNac + 'T00:00'), h = new Date();
+  let e = h.getFullYear() - n.getFullYear();
+  const m = h.getMonth() - n.getMonth();
+  if (m < 0 || (m === 0 && h.getDate() < n.getDate())) e--;
+  return e >= 0 ? e : null;
+}
+function aviso(texto){
+  const t = $('#toast');
+  t.textContent = texto;
+  t.classList.add('visible');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+/* ---------- persistencia ---------- */
+function datosPorDefecto(){
+  return {
+    perfiles: [],
+    config: {
+      pinHash: null,
+      diasAlertaExamen: 15,
+      notificaciones: false,
+      horaResumen: '08:00',
+      respaldoAutomatico: true,
+      mostrarMedsCalendario: true
+    },
+    ultimoPerfil: null
+  };
+}
+function cargarDatos(){
+  try{
+    const crudo = localStorage.getItem(CLAVE);
+    DB = crudo ? JSON.parse(crudo) : datosPorDefecto();
+  }catch(e){
+    console.error('No se pudieron leer los datos guardados', e);
+    DB = datosPorDefecto();
+  }
+  DB.perfiles = DB.perfiles || [];
+  DB.config = Object.assign(datosPorDefecto().config, DB.config || {});
+  // normalizar perfiles antiguos o importados
+  DB.perfiles.forEach(p => {
+    p.citas = p.citas || [];
+    p.medicamentosIndependientes = p.medicamentosIndependientes || [];
+    p.examenesIndependientes = p.examenesIndependientes || [];
+    p.contactosAgendamiento = p.contactosAgendamiento || [];
+    p.planesNutricionales = p.planesNutricionales || [];
+    p.citas.forEach(c => {
+      c.medicamentosRecetados = c.medicamentosRecetados || [];
+      c.examenesSolicitados = c.examenesSolicitados || [];
+    });
+    p.medicamentosIndependientes.forEach(m => {
+      m.tomasDiarias = m.tomasDiarias || [];
+      m.registro = m.registro || {};
+    });
+  });
+  perfilActivoId = DB.perfiles.some(p => p.id === DB.ultimoPerfil)
+    ? DB.ultimoPerfil
+    : (DB.perfiles[0] ? DB.perfiles[0].id : null);
+}
+function guardarDatos(){
+  DB.ultimoPerfil = perfilActivoId;
+  try{
+    localStorage.setItem(CLAVE, JSON.stringify(DB));
+    if (DB.config.respaldoAutomatico){
+      localStorage.setItem(CLAVE_RESPALDO, JSON.stringify({ marca: new Date().toISOString(), datos: DB }));
+    }
+  }catch(e){
+    aviso('No se pudo guardar: el almacenamiento del navegador está lleno. Exporta y borra archivos pesados.');
+    console.error(e);
+  }
+}
+const perfil = () => DB.perfiles.find(p => p.id === perfilActivoId) || null;
+
+/* ---------- modal genérico ---------- */
+let alGuardarModal = null;
+function abrirModal(titulo, html, alGuardar, opciones = {}){
+  $('#tituloModal').textContent = titulo;
+  $('#cuerpoModal').innerHTML = html;
+  alGuardarModal = alGuardar || null;
+  const pie = $('#pieModal');
+  if (alGuardar){
+    pie.innerHTML = `<button onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primario" id="btnGuardarModal">${esc(opciones.textoGuardar || 'Guardar')}</button>`;
+    $('#btnGuardarModal').onclick = () => { if (alGuardarModal) alGuardarModal(); };
+  }else{
+    pie.innerHTML = `<button onclick="cerrarModal()">Cerrar</button>`;
+  }
+  $('#modal').classList.toggle('ancho', !!opciones.ancho);
+  $('#fondoModal').classList.add('abierto');
+  const primero = $('#cuerpoModal input, #cuerpoModal select, #cuerpoModal textarea');
+  if (primero) setTimeout(() => primero.focus(), 40);
+}
+function cerrarModal(){
+  $('#fondoModal').classList.remove('abierto');
+  $('#cuerpoModal').innerHTML = '';
+  alGuardarModal = null;
+}
+$('#fondoModal').addEventListener('click', e => { if (e.target.id === 'fondoModal') cerrarModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+/* Valida los campos marcados como obligatorios dentro del modal. */
+function validar(ids){
+  let ok = true;
+  ids.forEach(id => {
+    const el = $('#' + id);
+    if (!el) return;
+    const vacio = !String(el.value).trim();
+    el.classList.toggle('error-campo', vacio);
+    if (vacio && ok){ ok = false; el.focus(); }
+  });
+  if (!ok) aviso('Completa los campos obligatorios marcados en rojo.');
+  return ok;
+}
+const val = id => { const e = $('#' + id); return e ? e.value.trim() : ''; };
+const chk = id => { const e = $('#' + id); return e ? e.checked : false; };
+
+/* ---------- mini-router por hash ---------- */
+const VISTAS = ['dashboard','citas','medicamentos','examenes','calendario','directorio','nutricion','configuracion'];
+const RENDER = {};
+
+function router(){
+  const destino = (location.hash || '#dashboard').slice(1);
+  const vista = VISTAS.includes(destino) ? destino : 'dashboard';
+  $$('.vista').forEach(s => s.classList.remove('activa'));
+  $$('#menu a').forEach(a => a.classList.toggle('activa', a.getAttribute('href') === '#' + vista));
+  $('#busquedaGlobal').value = '';
+  const seccion = $('#vista-' + vista);
+  if (!perfil()){
+    $('#sinPerfiles').style.display = 'block';
+    $('#contenido').style.display = 'none';
+    return;
+  }
+  $('#sinPerfiles').style.display = 'none';
+  $('#contenido').style.display = 'block';
+  seccion.classList.add('activa');
+  if (RENDER[vista]) RENDER[vista]();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', router);
+
+function refrescar(){
+  guardarDatos();
+  router();
+}
+
+/* =====================================================================
+   PERFILES
+   ===================================================================== */
+function pintarSelectorPerfiles(){
+  const sel = $('#selectorPerfil');
+  if (!DB.perfiles.length){
+    sel.innerHTML = '<option>Sin perfiles</option>';
+    return;
+  }
+  sel.innerHTML = DB.perfiles.map(p =>
+    `<option value="${p.id}" ${p.id === perfilActivoId ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+}
+$('#selectorPerfil').addEventListener('change', e => {
+  perfilActivoId = e.target.value;
+  guardarDatos();
+  router();
+});
+$('#btnNuevoPerfil').addEventListener('click', () => formularioPerfil());
+
+function formularioPerfil(id){
+  const p = id ? DB.perfiles.find(x => x.id === id) : null;
+  abrirModal(p ? 'Editar perfil' : 'Nuevo miembro de la familia', `
+    <div class="campo"><label for="pNombre">Nombre completo *</label>
+      <input id="pNombre" value="${esc(p ? p.nombre : '')}" placeholder="Ej.: María Fernanda Gómez"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="pNac">Fecha de nacimiento</label>
+        <input id="pNac" type="date" value="${esc(p ? p.fechaNacimiento : '')}"></div>
+      <div class="campo"><label for="pSangre">Tipo de sangre</label>
+        <select id="pSangre">${['','O+','O-','A+','A-','B+','B-','AB+','AB-'].map(t =>
+          `<option ${p && p.tipoSangre === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    </div>
+    <div class="campo"><label for="pAlergias">Alergias conocidas</label>
+      <textarea id="pAlergias" placeholder="Ej.: penicilina, maní, polvo">${esc(p ? p.alergias : '')}</textarea></div>
+  `, () => {
+    if (!validar(['pNombre'])) return;
+    if (p){
+      Object.assign(p, { nombre: val('pNombre'), fechaNacimiento: val('pNac'), tipoSangre: val('pSangre'), alergias: val('pAlergias') });
+    }else{
+      const nuevo = {
+        id: uid(), nombre: val('pNombre'), fechaNacimiento: val('pNac'),
+        tipoSangre: val('pSangre'), alergias: val('pAlergias'),
+        citas: [], medicamentosIndependientes: [], examenesIndependientes: [],
+        contactosAgendamiento: [], planesNutricionales: []
+      };
+      DB.perfiles.push(nuevo);
+      perfilActivoId = nuevo.id;
+    }
+    cerrarModal(); guardarDatos(); pintarSelectorPerfiles(); router();
+    aviso(p ? 'Perfil actualizado.' : 'Perfil creado.');
+  });
+}
+
+function eliminarPerfil(id){
+  const p = DB.perfiles.find(x => x.id === id);
+  if (!p) return;
+  abrirModal('Eliminar perfil', `
+    <p>Vas a eliminar el perfil de <strong>${esc(p.nombre)}</strong>.</p>
+    <p class="mensaje-error">Se borrarán sus ${p.citas.length} citas, ${p.medicamentosIndependientes.length} medicamentos,
+    exámenes, contactos y planes de alimentación. Esta acción no se puede deshacer.</p>
+    <div class="campo"><label for="confirmaNombre">Escribe el nombre del perfil para confirmar</label>
+      <input id="confirmaNombre" placeholder="${esc(p.nombre)}"></div>
+  `, () => {
+    if (val('confirmaNombre') !== p.nombre){ aviso('El nombre no coincide.'); return; }
+    DB.perfiles = DB.perfiles.filter(x => x.id !== id);
+    perfilActivoId = DB.perfiles[0] ? DB.perfiles[0].id : null;
+    cerrarModal(); guardarDatos(); pintarSelectorPerfiles(); router();
+    aviso('Perfil eliminado.');
+  }, { textoGuardar: 'Eliminar definitivamente' });
+}
+
+/* =====================================================================
+   AGREGADORES (exámenes de citas + independientes)
+   ===================================================================== */
+function todosLosExamenes(p){
+  const lista = [];
+  p.citas.forEach(c => (c.examenesSolicitados || []).forEach(e =>
+    lista.push({ ref: e, citaId: c.id, origen: `Cita de ${c.especialidad || 'consulta'} (${fechaLegible(c.fecha)})` })));
+  (p.examenesIndependientes || []).forEach(e => lista.push({ ref: e, citaId: null, origen: 'Registro directo' }));
+  return lista;
+}
+function proximasCitas(p, n){
+  const hoy = hoyISO();
+  return p.citas.filter(c => !c.realizada && c.fecha >= hoy)
+    .sort((a, b) => (a.fecha + (a.hora || '')).localeCompare(b.fecha + (b.hora || '')))
+    .slice(0, n);
+}
+function medicamentosActivos(p){
+  return p.medicamentosIndependientes.filter(m => m.activo);
+}
+function tomasDeHoy(m){
+  const f = hoyISO();
+  m.registro = m.registro || {};
+  if (!m.registro[f] || m.registro[f].length !== (m.tomasDiarias || []).length){
+    m.registro[f] = (m.tomasDiarias || []).map((_, i) => (m.registro[f] && m.registro[f][i]) || false);
+  }
+  return m.registro[f];
+}
+
+/* =====================================================================
+   PANEL (DASHBOARD)
+   ===================================================================== */
+RENDER.dashboard = function(){
+  const p = perfil();
+  const hoy = hoyISO();
+  const citas = proximasCitas(p, 3);
+  const examenes = todosLosExamenes(p).filter(e => e.ref.estado !== 'realizado');
+  const sinAgendar = examenes.filter(e => e.ref.estado === 'pendiente' && !e.ref.fechaProgramada);
+  const meds = medicamentosActivos(p);
+  const limite = Number(DB.config.diasAlertaExamen) || 15;
+
+  // exámenes pendientes cuya cita de origen ya tiene más de X días
+  const atrasados = sinAgendar.filter(e => {
+    const c = p.citas.find(c => c.id === e.citaId);
+    return c && diasEntre(c.fecha, hoy) > limite;
+  });
+
+  const e = edad(p.fechaNacimiento);
+
+  $('#vista-dashboard').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <div>
+          <h2 style="margin-bottom:.2rem">${esc(p.nombre)}</h2>
+          <div class="tenue">
+            ${e !== null ? e + ' años · ' : ''}${p.tipoSangre ? 'Sangre ' + esc(p.tipoSangre) + ' · ' : ''}
+            ${p.alergias ? 'Alergias: ' + esc(p.alergias) : 'Sin alergias registradas'}
+          </div>
+        </div>
+        <div class="fila">
+          <button class="btn-mini" onclick="formularioPerfil('${p.id}')">Editar perfil</button>
+          <button class="btn-mini btn-peligro" onclick="eliminarPerfil('${p.id}')">Eliminar</button>
+        </div>
+      </div>
+    </div>
+
+    ${atrasados.length ? `<div class="tarjeta" style="border-left:5px solid var(--rojo); background:var(--rojo-suave)">
+      <h3>⚠️ Exámenes sin agendar</h3>
+      <p style="margin:0">Hay ${atrasados.length} examen(es) ordenados hace más de ${limite} días y todavía sin fecha:
+      <strong>${atrasados.map(x => esc(x.ref.nombre)).join(', ')}</strong>.</p>
+      <p style="margin:.6rem 0 0"><a href="#examenes">Agendarlos ahora →</a></p>
+    </div>` : ''}
+
+    <div class="rejilla">
+      <div class="tarjeta">
+        <div class="entre"><h3>🩺 Próximas citas</h3><a href="#citas" class="tenue">Ver todas</a></div>
+        ${citas.length ? citas.map(c => `
+          <div style="border-left:3px solid var(--azul); padding:.35rem .6rem; margin-bottom:.5rem; cursor:pointer"
+               onclick="detalleCita('${c.id}')">
+            <strong>${esc(c.especialidad || 'Consulta')}</strong>
+            <div class="tenue">${fechaLegible(c.fecha)} ${horaLegible(c.hora)} · ${esc(c.doctor || 'Sin doctor asignado')}</div>
+            <div class="tenue">${esc(c.lugar || '')}</div>
+          </div>`).join('') : '<p class="vacio">No hay citas próximas. Agrega una desde la pestaña Citas.</p>'}
+      </div>
+
+      <div class="tarjeta">
+        <div class="entre"><h3>🧪 Exámenes pendientes</h3><a href="#examenes" class="tenue">Ver todos</a></div>
+        ${examenes.length ? examenes.slice(0, 5).map(x => `
+          <div style="border-left:3px solid var(--naranja); padding:.35rem .6rem; margin-bottom:.5rem">
+            <strong>${esc(x.ref.nombre)}</strong>
+            <div class="tenue">${x.ref.fechaProgramada ? 'Programado para ' + fechaLegible(x.ref.fechaProgramada) : 'Sin fecha asignada'}</div>
+          </div>`).join('') : '<p class="vacio">No hay exámenes pendientes.</p>'}
+      </div>
+
+      <div class="tarjeta">
+        <div class="entre"><h3>💊 Tomas de hoy</h3><a href="#medicamentos" class="tenue">Ver todos</a></div>
+        ${meds.length ? meds.map(m => {
+          const t = tomasDeHoy(m);
+          const hechas = t.filter(Boolean).length;
+          return `<div style="border-left:3px solid var(--verde); padding:.35rem .6rem; margin-bottom:.6rem">
+            <strong>${esc(m.nombre)}</strong> <span class="tenue">${esc(m.dosis || '')}</span>
+            <div class="tenue">${hechas} de ${t.length || 0} tomas marcadas hoy</div>
+            <div class="barra"><span style="width:${t.length ? (hechas / t.length * 100) : 0}%"></span></div>
+          </div>`;
+        }).join('') : '<p class="vacio">No hay medicamentos activos.</p>'}
+      </div>
+    </div>
+  `;
+};
+
+/* =====================================================================
+   CITAS MÉDICAS
+   ===================================================================== */
+const filtrosCitas = { desde: '', hasta: '', tipo: '', especialidad: '', estado: '' };
+const orden = { citas: { campo: 'fecha', dir: -1 }, meds: { campo: 'nombre', dir: 1 },
+                examenes: { campo: 'fechaProgramada', dir: 1 }, contactos: { campo: 'entidad', dir: 1 } };
+
+function ordenar(lista, estado, obtener){
+  return lista.slice().sort((a, b) => {
+    const va = String(obtener(a, estado.campo) ?? '').toLowerCase();
+    const vb = String(obtener(b, estado.campo) ?? '').toLowerCase();
+    return va < vb ? -estado.dir : va > vb ? estado.dir : 0;
+  });
+}
+function cambiarOrden(tabla, campo){
+  const e = orden[tabla];
+  e.dir = (e.campo === campo) ? -e.dir : 1;
+  e.campo = campo;
+  router();
+}
+function flecha(tabla, campo){
+  const e = orden[tabla];
+  return e.campo === campo ? (e.dir === 1 ? ' ▲' : ' ▼') : '';
+}
+
+RENDER.citas = function(){
+  const p = perfil();
+  const especialidades = [...new Set(p.citas.map(c => c.especialidad).filter(Boolean))].sort();
+
+  let lista = p.citas.filter(c => {
+    if (filtrosCitas.desde && c.fecha < filtrosCitas.desde) return false;
+    if (filtrosCitas.hasta && c.fecha > filtrosCitas.hasta) return false;
+    if (filtrosCitas.tipo && c.tipo !== filtrosCitas.tipo) return false;
+    if (filtrosCitas.especialidad && c.especialidad !== filtrosCitas.especialidad) return false;
+    if (filtrosCitas.estado === 'realizada' && !c.realizada) return false;
+    if (filtrosCitas.estado === 'pendiente' && c.realizada) return false;
+    return true;
+  });
+  lista = ordenar(lista, orden.citas, (c, campo) => c[campo]);
+
+  $('#vista-citas').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <h2>🩺 Citas médicas</h2>
+        <button class="btn-primario" onclick="formularioCita()">+ Agregar cita</button>
+      </div>
+      <div class="rejilla" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-top:.8rem">
+        <div><label for="fDesde">Desde</label><input id="fDesde" type="date" value="${filtrosCitas.desde}"></div>
+        <div><label for="fHasta">Hasta</label><input id="fHasta" type="date" value="${filtrosCitas.hasta}"></div>
+        <div><label for="fTipo">Tipo</label><select id="fTipo">
+          <option value="">Todos</option>
+          <option ${filtrosCitas.tipo === 'IPS' ? 'selected' : ''}>IPS</option>
+          <option ${filtrosCitas.tipo === 'Particular' ? 'selected' : ''}>Particular</option></select></div>
+        <div><label for="fEsp">Especialidad</label><select id="fEsp">
+          <option value="">Todas</option>
+          ${especialidades.map(e => `<option ${filtrosCitas.especialidad === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}
+        </select></div>
+        <div><label for="fEstado">Estado</label><select id="fEstado">
+          <option value="">Todos</option>
+          <option value="pendiente" ${filtrosCitas.estado === 'pendiente' ? 'selected' : ''}>Pendientes</option>
+          <option value="realizada" ${filtrosCitas.estado === 'realizada' ? 'selected' : ''}>Realizadas</option></select></div>
+        <div style="display:flex; align-items:flex-end"><button onclick="limpiarFiltrosCitas()" style="width:100%; justify-content:center">Limpiar filtros</button></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <p class="tenue" style="margin-top:0">${lista.length} cita(s) en el listado.</p>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr>
+            <th data-campo="fecha" onclick="cambiarOrden('citas','fecha')">Fecha${flecha('citas','fecha')}</th>
+            <th data-campo="especialidad" onclick="cambiarOrden('citas','especialidad')">Especialidad${flecha('citas','especialidad')}</th>
+            <th data-campo="doctor" onclick="cambiarOrden('citas','doctor')">Doctor${flecha('citas','doctor')}</th>
+            <th data-campo="lugar" onclick="cambiarOrden('citas','lugar')">Lugar${flecha('citas','lugar')}</th>
+            <th data-campo="tipo" onclick="cambiarOrden('citas','tipo')">Tipo${flecha('citas','tipo')}</th>
+            <th>Agendada por</th><th>Estado</th><th>Acciones</th>
+          </tr></thead>
+          <tbody>
+          ${lista.length ? lista.map(c => `
+            <tr>
+              <td><strong>${fechaLegible(c.fecha)}</strong><div class="tenue">${horaLegible(c.hora)}</div></td>
+              <td>${esc(c.especialidad)}
+                ${(c.medicamentosRecetados || []).length ? `<span class="etq etq-verde">💊 ${c.medicamentosRecetados.length}</span>` : ''}
+                ${(c.examenesSolicitados || []).length ? `<span class="etq etq-naranja">🧪 ${c.examenesSolicitados.length}</span>` : ''}
+              </td>
+              <td>${esc(c.doctor)}</td>
+              <td>${esc(c.lugar)}</td>
+              <td><span class="etq ${c.tipo === 'IPS' ? 'etq-azul' : 'etq-morada'}">${esc(c.tipo)}</span></td>
+              <td class="tenue">${esc(c.medioAgendamiento || '')}</td>
+              <td>${c.realizada ? '<span class="etq etq-verde">Realizada</span>' : '<span class="etq etq-gris">Pendiente</span>'}</td>
+              <td class="acciones">
+                <button class="btn-mini" onclick="detalleCita('${c.id}')">Ver</button>
+                <button class="btn-mini" onclick="formularioCita('${c.id}')">Editar</button>
+                <button class="btn-mini" onclick="alternarRealizada('${c.id}')">${c.realizada ? 'Reabrir' : 'Marcar hecha'}</button>
+                <button class="btn-mini btn-peligro" onclick="eliminarCita('${c.id}')">Borrar</button>
+              </td>
+            </tr>`).join('') : `<tr><td colspan="8" class="vacio">No hay citas con estos filtros. Agrega una cita o limpia los filtros.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // los filtros se aplican al cambiar
+  ['fDesde','fHasta','fTipo','fEsp','fEstado'].forEach(id => {
+    $('#' + id).addEventListener('change', () => {
+      filtrosCitas.desde = val('fDesde'); filtrosCitas.hasta = val('fHasta');
+      filtrosCitas.tipo = val('fTipo'); filtrosCitas.especialidad = val('fEsp');
+      filtrosCitas.estado = val('fEstado');
+      RENDER.citas();
+    });
+  });
+};
+
+function limpiarFiltrosCitas(){
+  Object.keys(filtrosCitas).forEach(k => filtrosCitas[k] = '');
+  RENDER.citas();
+}
+
+function formularioCita(id){
+  const p = perfil();
+  const c = id ? p.citas.find(x => x.id === id) : null;
+  const opc = (lista, sel) => lista.map(o => `<option ${sel === o ? 'selected' : ''}>${o}</option>`).join('');
+  abrirModal(c ? 'Editar cita' : 'Nueva cita médica', `
+    <div class="campos-2">
+      <div class="campo"><label for="cFecha">Fecha *</label><input id="cFecha" type="date" value="${esc(c ? c.fecha : hoyISO())}"></div>
+      <div class="campo"><label for="cHora">Hora</label><input id="cHora" type="time" value="${esc(c ? c.hora : '')}"></div>
+    </div>
+    <div class="campos-2">
+      <div class="campo"><label for="cEsp">Especialidad *</label>
+        <input id="cEsp" list="listaEsp" value="${esc(c ? c.especialidad : '')}" placeholder="Ej.: Medicina general">
+        <datalist id="listaEsp">${['Medicina general','Odontología','Pediatría','Ginecología','Dermatología','Oftalmología','Ortopedia','Cardiología','Nutrición','Psicología','Fisioterapia','Laboratorio'].map(e => `<option>${e}</option>`).join('')}</datalist></div>
+      <div class="campo"><label for="cDoc">Nombre del doctor</label><input id="cDoc" value="${esc(c ? c.doctor : '')}"></div>
+    </div>
+    <div class="campo"><label for="cLugar">Lugar</label><input id="cLugar" value="${esc(c ? c.lugar : '')}" placeholder="Sede, consultorio, dirección"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="cTipo">Tipo</label><select id="cTipo">${opc(['IPS','Particular'], c ? c.tipo : 'IPS')}</select></div>
+      <div class="campo"><label for="cMedio">Medio para agendarla</label><select id="cMedio">${opc(['WhatsApp','Llamada','Presencial','Página web','App'], c ? c.medioAgendamiento : 'Llamada')}</select></div>
+    </div>
+    <div class="campo"><label for="cNotas">Notas</label><textarea id="cNotas" placeholder="Motivo de la consulta, autorizaciones, copago…">${esc(c ? c.notas : '')}</textarea></div>
+    <div class="campo"><label><input type="checkbox" id="cRealizada" style="width:auto" ${c && c.realizada ? 'checked' : ''}> Ya se realizó</label></div>
+  `, () => {
+    if (!validar(['cFecha','cEsp'])) return;
+    const datos = {
+      fecha: val('cFecha'), hora: val('cHora'), especialidad: val('cEsp'), doctor: val('cDoc'),
+      lugar: val('cLugar'), tipo: val('cTipo'), medioAgendamiento: val('cMedio'),
+      notas: val('cNotas'), realizada: chk('cRealizada')
+    };
+    if (c) Object.assign(c, datos);
+    else p.citas.push(Object.assign({ id: uid(), recomendaciones: '', medicamentosRecetados: [], examenesSolicitados: [] }, datos));
+    cerrarModal(); refrescar();
+    aviso(c ? 'Cita actualizada.' : 'Cita agregada.');
+  });
+}
+
+function alternarRealizada(id){
+  const c = perfil().citas.find(x => x.id === id);
+  c.realizada = !c.realizada;
+  refrescar();
+  aviso(c.realizada ? 'Cita marcada como realizada.' : 'Cita reabierta.');
+}
+function eliminarCita(id){
+  const p = perfil();
+  const c = p.citas.find(x => x.id === id);
+  abrirModal('Eliminar cita', `<p>Se eliminará la cita de <strong>${esc(c.especialidad)}</strong> del ${fechaLegible(c.fecha)},
+    junto con sus recomendaciones, medicamentos formulados y exámenes solicitados.</p>`, () => {
+    p.citas = p.citas.filter(x => x.id !== id);
+    cerrarModal(); refrescar(); aviso('Cita eliminada.');
+  }, { textoGuardar: 'Eliminar' });
+}
+
+/* ---------- detalle de cita: recomendaciones, fórmula y exámenes ---------- */
+function detalleCita(id){
+  const c = perfil().citas.find(x => x.id === id);
+  if (!c) return;
+  const html = `
+    <div class="fila" style="margin-bottom:.8rem">
+      <span class="etq ${c.tipo === 'IPS' ? 'etq-azul' : 'etq-morada'}">${esc(c.tipo)}</span>
+      <span class="etq etq-gris">${fechaLegible(c.fecha)} ${horaLegible(c.hora)}</span>
+      ${c.realizada ? '<span class="etq etq-verde">Realizada</span>' : '<span class="etq etq-gris">Pendiente</span>'}
+    </div>
+    <p style="margin:.2rem 0"><strong>${esc(c.especialidad)}</strong> · ${esc(c.doctor || 'sin doctor asignado')}</p>
+    <p class="tenue" style="margin:.2rem 0 .8rem">${esc(c.lugar || '')} ${c.medioAgendamiento ? '· agendada por ' + esc(c.medioAgendamiento) : ''}</p>
+    ${c.notas ? `<p style="white-space:pre-wrap"><strong>Notas:</strong> ${esc(c.notas)}</p>` : ''}
+
+    <fieldset><legend>Recomendaciones del doctor</legend>
+      <textarea id="dRecom" placeholder="Indicaciones, controles, cuidados…">${esc(c.recomendaciones || '')}</textarea>
+      <button class="btn-mini btn-primario" style="margin-top:.5rem" onclick="guardarRecomendaciones('${c.id}')">Guardar recomendaciones</button>
+    </fieldset>
+
+    <fieldset><legend>Medicamentos formulados</legend>
+      ${(c.medicamentosRecetados || []).length ? `<div class="tabla-envoltura"><table>
+        <thead><tr><th>Medicamento</th><th>Dosis</th><th>Frecuencia</th><th>Duración</th><th>Observaciones</th><th></th></tr></thead>
+        <tbody>${c.medicamentosRecetados.map((m, i) => `<tr>
+          <td><strong>${esc(m.nombre)}</strong></td><td>${esc(m.dosis)}</td><td>${esc(m.frecuencia)}</td>
+          <td>${esc(m.duracion)}</td><td>${esc(m.observaciones)}</td>
+          <td class="acciones">
+            <button class="btn-mini btn-verde" title="Pasar al seguimiento diario" onclick="pasarASeguimiento('${c.id}',${i})">Seguir</button>
+            <button class="btn-mini btn-peligro" onclick="quitarMedicamentoCita('${c.id}',${i})">✕</button></td>
+        </tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Aún no hay medicamentos registrados en esta cita.</p>'}
+      <button class="btn-mini" style="margin-top:.5rem" onclick="formularioMedicamentoCita('${c.id}')">+ Agregar medicamento</button>
+    </fieldset>
+
+    <fieldset><legend>Exámenes solicitados</legend>
+      ${(c.examenesSolicitados || []).length ? `<div class="tabla-envoltura"><table>
+        <thead><tr><th>Examen</th><th>Estado</th><th>Fecha</th><th>Lugar</th><th>Resultado</th><th></th></tr></thead>
+        <tbody>${c.examenesSolicitados.map((e, i) => `<tr>
+          <td><strong>${esc(e.nombre)}</strong></td>
+          <td>${etiquetaEstado(e.estado)}</td>
+          <td>${e.fechaProgramada ? fechaLegible(e.fechaProgramada) : '—'}</td>
+          <td>${esc(e.lugar || '')}</td>
+          <td>${e.archivoResultadoBase64 ? `<button class="btn-mini" onclick="verResultado('${c.id}',${i})">Ver</button>` : '<span class="tenue">Sin archivo</span>'}</td>
+          <td class="acciones">
+            <button class="btn-mini" onclick="formularioExamen('${c.id}',${i})">Editar</button>
+            <button class="btn-mini btn-peligro" onclick="quitarExamen('${c.id}',${i})">✕</button></td>
+        </tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Aún no hay exámenes solicitados en esta cita.</p>'}
+      <button class="btn-mini" style="margin-top:.5rem" onclick="formularioExamen('${c.id}')">+ Agregar examen</button>
+    </fieldset>`;
+  abrirModal('Detalle de la cita', html, null, { ancho: true });
+}
+
+function guardarRecomendaciones(idCita){
+  const c = perfil().citas.find(x => x.id === idCita);
+  c.recomendaciones = val('dRecom');
+  guardarDatos(); aviso('Recomendaciones guardadas.');
+}
+function formularioMedicamentoCita(idCita){
+  const c = perfil().citas.find(x => x.id === idCita);
+  abrirModal('Medicamento formulado', `
+    <div class="campo"><label for="mNombre">Nombre *</label><input id="mNombre" placeholder="Ej.: Amoxicilina 500 mg"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="mDosis">Dosis</label><input id="mDosis" placeholder="Ej.: 1 tableta"></div>
+      <div class="campo"><label for="mFrec">Frecuencia</label><input id="mFrec" placeholder="Ej.: cada 8 horas"></div>
+    </div>
+    <div class="campo"><label for="mDur">Duración</label><input id="mDur" placeholder="Ej.: 7 días"></div>
+    <div class="campo"><label for="mObs">Observaciones</label><textarea id="mObs" placeholder="Ej.: tomar después de las comidas"></textarea></div>
+  `, () => {
+    if (!validar(['mNombre'])) return;
+    c.medicamentosRecetados.push({ nombre: val('mNombre'), dosis: val('mDosis'), frecuencia: val('mFrec'), duracion: val('mDur'), observaciones: val('mObs') });
+    guardarDatos(); detalleCita(idCita); aviso('Medicamento agregado a la cita.');
+  });
+}
+function quitarMedicamentoCita(idCita, i){
+  const c = perfil().citas.find(x => x.id === idCita);
+  c.medicamentosRecetados.splice(i, 1);
+  guardarDatos(); detalleCita(idCita);
+}
+/* Copia un medicamento formulado al registro con seguimiento diario. */
+function pasarASeguimiento(idCita, i){
+  const p = perfil();
+  const c = p.citas.find(x => x.id === idCita);
+  const m = c.medicamentosRecetados[i];
+  p.medicamentosIndependientes.push({
+    id: uid(), nombre: m.nombre, dosis: m.dosis, frecuencia: m.frecuencia, duracion: m.duracion,
+    observaciones: m.observaciones, fechaInicio: hoyISO(), activo: true,
+    tomasDiarias: [{ hora: '08:00' }], registro: {}
+  });
+  guardarDatos();
+  aviso('Medicamento agregado al seguimiento diario. Ajusta los horarios en la pestaña Medicamentos.');
+}
+
+/* =====================================================================
+   MEDICAMENTOS CON SEGUIMIENTO DIARIO
+   ===================================================================== */
+RENDER.medicamentos = function(){
+  const p = perfil();
+  const activos = ordenar(p.medicamentosIndependientes.filter(m => m.activo), orden.meds, (m, c) => m[c]);
+  const pasados = p.medicamentosIndependientes.filter(m => !m.activo);
+
+  const tarjetaMed = (m) => {
+    const t = tomasDeHoy(m);
+    const hechas = t.filter(Boolean).length;
+    return `<div class="tarjeta">
+      <div class="entre">
+        <div>
+          <h3 style="margin-bottom:.1rem">💊 ${esc(m.nombre)}</h3>
+          <div class="tenue">${esc(m.dosis || '')} ${m.frecuencia ? '· ' + esc(m.frecuencia) : ''} ${m.duracion ? '· ' + esc(m.duracion) : ''}</div>
+          <div class="tenue">Desde ${fechaLegible(m.fechaInicio)}</div>
+        </div>
+        <div class="fila">
+          <button class="btn-mini" onclick="formularioMedicamento('${m.id}')">Editar</button>
+          <button class="btn-mini" onclick="alternarMedicamento('${m.id}')">${m.activo ? 'Suspender' : 'Reactivar'}</button>
+          <button class="btn-mini btn-peligro" onclick="eliminarMedicamento('${m.id}')">Borrar</button>
+        </div>
+      </div>
+      ${m.observaciones ? `<p class="tenue" style="margin:.5rem 0 0">${esc(m.observaciones)}</p>` : ''}
+      ${m.activo ? `
+        <div style="margin-top:.7rem">
+          <div class="entre"><strong style="font-size:.9rem">Tomas de hoy (${hechas}/${t.length})</strong></div>
+          ${t.length ? m.tomasDiarias.map((toma, i) => `
+            <label class="toma ${t[i] ? 'hecha' : ''}">
+              <input type="checkbox" ${t[i] ? 'checked' : ''} onchange="marcarToma('${m.id}',${i},this.checked)">
+              <span>${horaLegible(toma.hora)}</span>
+              <span class="tenue" style="margin-left:auto">${t[i] ? 'Tomada' : 'Pendiente'}</span>
+            </label>`).join('') : '<p class="tenue">Sin horarios definidos. Edita el medicamento para agregarlos.</p>'}
+        </div>` : ''}
+    </div>`;
+  };
+
+  $('#vista-medicamentos').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <h2>💊 Medicamentos</h2>
+        <div class="fila">
+          <button onclick="pedirPermisoNotificaciones()">🔔 Activar recordatorios</button>
+          <button class="btn-primario" onclick="formularioMedicamento()">+ Agregar medicamento</button>
+        </div>
+      </div>
+      <p class="tenue" style="margin:.5rem 0 0">Marca cada toma del día. El historial queda guardado por fecha.</p>
+    </div>
+    <h3>Activos (${activos.length})</h3>
+    ${activos.length ? activos.map(tarjetaMed).join('') : '<div class="tarjeta"><p class="vacio">No hay medicamentos activos.</p></div>'}
+    ${pasados.length ? `<h3 style="margin-top:1.2rem">Suspendidos (${pasados.length})</h3>${pasados.map(tarjetaMed).join('')}` : ''}`;
+};
+
+function formularioMedicamento(id){
+  const p = perfil();
+  const m = id ? p.medicamentosIndependientes.find(x => x.id === id) : null;
+  const horas = m ? (m.tomasDiarias || []).map(t => t.hora) : ['08:00'];
+  abrirModal(m ? 'Editar medicamento' : 'Nuevo medicamento', `
+    <div class="campo"><label for="miNombre">Nombre *</label><input id="miNombre" value="${esc(m ? m.nombre : '')}" placeholder="Ej.: Losartán 50 mg"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="miDosis">Dosis</label><input id="miDosis" value="${esc(m ? m.dosis : '')}" placeholder="Ej.: 1 tableta"></div>
+      <div class="campo"><label for="miFrec">Frecuencia</label><input id="miFrec" value="${esc(m ? m.frecuencia : '')}" placeholder="Ej.: cada 12 horas"></div>
+    </div>
+    <div class="campos-2">
+      <div class="campo"><label for="miDur">Duración</label><input id="miDur" value="${esc(m ? m.duracion : '')}" placeholder="Ej.: permanente"></div>
+      <div class="campo"><label for="miInicio">Fecha de inicio</label><input id="miInicio" type="date" value="${esc(m ? m.fechaInicio : hoyISO())}"></div>
+    </div>
+    <div class="campo"><label for="miObs">Observaciones</label><textarea id="miObs">${esc(m ? m.observaciones || '' : '')}</textarea></div>
+    <fieldset><legend>Horarios de toma</legend>
+      <div id="listaHoras">${horas.map(h => filaHora(h)).join('')}</div>
+      <button class="btn-mini" onclick="agregarFilaHora()">+ Agregar horario</button>
+    </fieldset>
+  `, () => {
+    if (!validar(['miNombre'])) return;
+    const nuevasHoras = $$('#listaHoras input[type=time]').map(i => i.value).filter(Boolean);
+    const datos = {
+      nombre: val('miNombre'), dosis: val('miDosis'), frecuencia: val('miFrec'), duracion: val('miDur'),
+      observaciones: val('miObs'), fechaInicio: val('miInicio'),
+      tomasDiarias: nuevasHoras.map(h => ({ hora: h }))
+    };
+    if (m) Object.assign(m, datos);
+    else p.medicamentosIndependientes.push(Object.assign({ id: uid(), activo: true, registro: {} }, datos));
+    cerrarModal(); refrescar(); programarRecordatorios();
+    aviso(m ? 'Medicamento actualizado.' : 'Medicamento agregado.');
+  });
+}
+function filaHora(h){
+  return `<div class="fila" style="margin-bottom:.4rem">
+    <input type="time" value="${esc(h)}" style="max-width:150px">
+    <button class="btn-mini btn-peligro" onclick="this.parentNode.remove()">✕</button></div>`;
+}
+function agregarFilaHora(){
+  $('#listaHoras').insertAdjacentHTML('beforeend', filaHora('12:00'));
+}
+function marcarToma(id, i, valor){
+  const m = perfil().medicamentosIndependientes.find(x => x.id === id);
+  const t = tomasDeHoy(m);
+  t[i] = valor;
+  guardarDatos();
+  RENDER.medicamentos();
+}
+function alternarMedicamento(id){
+  const m = perfil().medicamentosIndependientes.find(x => x.id === id);
+  m.activo = !m.activo;
+  refrescar(); aviso(m.activo ? 'Medicamento reactivado.' : 'Medicamento suspendido.');
+}
+function eliminarMedicamento(id){
+  const p = perfil();
+  const m = p.medicamentosIndependientes.find(x => x.id === id);
+  abrirModal('Eliminar medicamento', `<p>Se eliminará <strong>${esc(m.nombre)}</strong> y su historial de tomas.</p>`, () => {
+    p.medicamentosIndependientes = p.medicamentosIndependientes.filter(x => x.id !== id);
+    cerrarModal(); refrescar(); aviso('Medicamento eliminado.');
+  }, { textoGuardar: 'Eliminar' });
+}
+
+/* =====================================================================
+   EXÁMENES
+   ===================================================================== */
+function etiquetaEstado(e){
+  if (e === 'realizado') return '<span class="etq etq-verde">Realizado</span>';
+  if (e === 'programado') return '<span class="etq etq-naranja">Programado</span>';
+  return '<span class="etq etq-gris">Pendiente</span>';
+}
+
+RENDER.examenes = function(){
+  const p = perfil();
+  let lista = todosLosExamenes(p);
+  lista = lista.slice().sort((a, b) => {
+    const va = String(a.ref[orden.examenes.campo] ?? ''), vb = String(b.ref[orden.examenes.campo] ?? '');
+    return va < vb ? -orden.examenes.dir : va > vb ? orden.examenes.dir : 0;
+  });
+
+  $('#vista-examenes').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <h2>🧪 Exámenes médicos</h2>
+        <button class="btn-primario" onclick="formularioExamen(null)">+ Agregar examen</button>
+      </div>
+      <p class="tenue" style="margin:.5rem 0 0">Incluye los exámenes solicitados en cada cita y los que registres por tu cuenta.</p>
+    </div>
+    <div class="tarjeta">
+      <div class="tabla-envoltura"><table>
+        <thead><tr>
+          <th data-campo="nombre" onclick="cambiarOrden('examenes','nombre')">Examen${flecha('examenes','nombre')}</th>
+          <th data-campo="estado" onclick="cambiarOrden('examenes','estado')">Estado${flecha('examenes','estado')}</th>
+          <th data-campo="fechaProgramada" onclick="cambiarOrden('examenes','fechaProgramada')">Fecha${flecha('examenes','fechaProgramada')}</th>
+          <th>Lugar</th><th>Preparación</th><th>Origen</th><th>Resultado</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>${lista.length ? lista.map((x, idx) => `
+          <tr>
+            <td><strong>${esc(x.ref.nombre)}</strong></td>
+            <td>${etiquetaEstado(x.ref.estado)}</td>
+            <td>${x.ref.fechaProgramada ? fechaLegible(x.ref.fechaProgramada) : '<span class="tenue">Sin agendar</span>'}</td>
+            <td>${esc(x.ref.lugar || '')}</td>
+            <td class="tenue">${esc(x.ref.instrucciones || '')}</td>
+            <td class="tenue">${esc(x.origen)}</td>
+            <td>${x.ref.archivoResultadoBase64 ? `<button class="btn-mini" onclick="verResultadoGlobal(${idx})">Ver</button>` : '<span class="tenue">—</span>'}</td>
+            <td class="acciones">
+              <button class="btn-mini" onclick="editarExamenGlobal(${idx})">Editar</button>
+              <button class="btn-mini btn-peligro" onclick="eliminarExamenGlobal(${idx})">Borrar</button>
+            </td>
+          </tr>`).join('') : '<tr><td colspan="8" class="vacio">No hay exámenes registrados todavía.</td></tr>'}
+        </tbody></table></div>
+    </div>`;
+  window._examenesVista = lista;
+};
+
+function editarExamenGlobal(i){
+  const x = window._examenesVista[i];
+  if (x.citaId){
+    const c = perfil().citas.find(c => c.id === x.citaId);
+    formularioExamen(x.citaId, c.examenesSolicitados.indexOf(x.ref));
+  }else{
+    formularioExamen(null, perfil().examenesIndependientes.indexOf(x.ref));
+  }
+}
+function eliminarExamenGlobal(i){
+  const x = window._examenesVista[i];
+  const p = perfil();
+  abrirModal('Eliminar examen', `<p>Se eliminará <strong>${esc(x.ref.nombre)}</strong> y el archivo de resultado que tenga cargado.</p>`, () => {
+    if (x.citaId){
+      const c = p.citas.find(c => c.id === x.citaId);
+      c.examenesSolicitados.splice(c.examenesSolicitados.indexOf(x.ref), 1);
+    }else{
+      p.examenesIndependientes.splice(p.examenesIndependientes.indexOf(x.ref), 1);
+    }
+    cerrarModal(); refrescar(); aviso('Examen eliminado.');
+  }, { textoGuardar: 'Eliminar' });
+}
+function verResultadoGlobal(i){ mostrarArchivo(window._examenesVista[i].ref); }
+function verResultado(idCita, i){
+  const c = perfil().citas.find(x => x.id === idCita);
+  mostrarArchivo(c.examenesSolicitados[i]);
+}
+function mostrarArchivo(ex){
+  const d = ex.archivoResultadoBase64;
+  if (!d) return;
+  const esImagen = d.startsWith('data:image');
+  abrirModal('Resultado: ' + ex.nombre, esImagen
+    ? `<img src="${d}" alt="Resultado del examen" style="max-width:100%; border-radius:10px">
+       <p style="margin-top:.8rem"><a class="boton" href="${d}" download="${esc(ex.nombre)}">Descargar archivo</a></p>`
+    : `<p>El resultado está guardado como archivo ${esc(ex.archivoNombre || 'PDF')}.</p>
+       <p><a class="boton btn-primario" href="${d}" download="${esc(ex.archivoNombre || ex.nombre + '.pdf')}">Descargar resultado</a></p>`,
+    null, { ancho: esImagen });
+}
+
+/* idCita: id de la cita a la que pertenece, o null para examen independiente.
+   indice: posición al editar; edicion: true si se está editando. */
+function formularioExamen(idCita, indice){
+  const p = perfil();
+  const contenedor = idCita ? p.citas.find(c => c.id === idCita).examenesSolicitados : (p.examenesIndependientes = p.examenesIndependientes || []);
+  const editando = typeof indice === 'number' && indice >= 0;
+  const e = editando ? contenedor[indice] : null;
+  abrirModal(e ? 'Editar examen' : 'Nuevo examen', `
+    <div class="campo"><label for="exNombre">Nombre del examen *</label>
+      <input id="exNombre" value="${esc(e ? e.nombre : '')}" placeholder="Ej.: Hemograma completo"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="exEstado">Estado</label><select id="exEstado">
+        ${['pendiente','programado','realizado'].map(s => `<option value="${s}" ${e && e.estado === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}
+      </select></div>
+      <div class="campo"><label for="exFecha">Fecha programada</label><input id="exFecha" type="date" value="${esc(e ? e.fechaProgramada : '')}"></div>
+    </div>
+    <div class="campo"><label for="exLugar">Lugar</label><input id="exLugar" value="${esc(e ? e.lugar : '')}" placeholder="Laboratorio, sede"></div>
+    <div class="campo"><label for="exInstr">Instrucciones previas</label>
+      <textarea id="exInstr" placeholder="Ej.: ayuno de 8 horas, suspender vitaminas">${esc(e ? e.instrucciones : '')}</textarea></div>
+    <div class="campo"><label for="exArchivo">Archivo del resultado (imagen o PDF, máximo 2 MB)</label>
+      <input id="exArchivo" type="file" accept="image/*,application/pdf">
+      <p class="tenue" id="estadoArchivo">${e && e.archivoResultadoBase64 ? 'Ya hay un archivo cargado. Si eliges otro, lo reemplaza.' : 'Sin archivo.'}</p></div>
+  `, () => {
+    if (!validar(['exNombre'])) return;
+    const datos = {
+      nombre: val('exNombre'), estado: val('exEstado'), fechaProgramada: val('exFecha'),
+      lugar: val('exLugar'), instrucciones: val('exInstr'),
+      archivoResultadoBase64: e ? e.archivoResultadoBase64 || '' : '',
+      archivoNombre: e ? e.archivoNombre || '' : ''
+    };
+    const archivo = $('#exArchivo').files[0];
+    const terminar = () => {
+      if (e) Object.assign(e, datos);
+      else contenedor.push(datos);
+      cerrarModal(); guardarDatos();
+      if (idCita) detalleCita(idCita); else router();
+      aviso('Examen guardado.');
+    };
+    if (archivo){
+      if (archivo.size > 2 * 1024 * 1024){
+        $('#estadoArchivo').innerHTML = '<span class="mensaje-error">El archivo pesa más de 2 MB. Comprímelo o toma una foto de menor resolución.</span>';
+        return;
+      }
+      const lector = new FileReader();
+      lector.onload = () => { datos.archivoResultadoBase64 = lector.result; datos.archivoNombre = archivo.name; terminar(); };
+      lector.onerror = () => aviso('No se pudo leer el archivo.');
+      lector.readAsDataURL(archivo);
+    }else{
+      terminar();
+    }
+  });
+}
+function quitarExamen(idCita, i){
+  const c = perfil().citas.find(x => x.id === idCita);
+  c.examenesSolicitados.splice(i, 1);
+  guardarDatos(); detalleCita(idCita);
+}
+
+/* =====================================================================
+   CALENDARIO
+   ===================================================================== */
+let calRef = new Date();          // mes/semana que se está mostrando
+let calModo = 'mes';              // 'mes' o 'semana'
+
+function eventosDelPerfil(){
+  const p = perfil();
+  const eventos = [];
+  p.citas.forEach(c => {
+    if (c.fecha) eventos.push({ tipo: 'cita', fecha: c.fecha, hora: c.hora, titulo: c.especialidad || 'Cita', id: c.id });
+  });
+  todosLosExamenes(p).forEach((x, i) => {
+    if (x.ref.fechaProgramada) eventos.push({ tipo: 'examen', fecha: x.ref.fechaProgramada, hora: '', titulo: x.ref.nombre, indice: i });
+  });
+  if (DB.config.mostrarMedsCalendario){
+    medicamentosActivos(p).forEach(m => {
+      (m.tomasDiarias || []).forEach(t => eventos.push({ tipo: 'med', hora: t.hora, titulo: m.nombre, id: m.id, diario: true }));
+    });
+  }
+  return eventos;
+}
+
+RENDER.calendario = function(){
+  const eventos = eventosDelPerfil();
+  const hoy = hoyISO();
+  const año = calRef.getFullYear(), mes = calRef.getMonth();
+
+  let inicio, total, titulo;
+  if (calModo === 'mes'){
+    const primero = new Date(año, mes, 1);
+    const desplazamiento = (primero.getDay() + 6) % 7; // lunes = 0
+    inicio = new Date(año, mes, 1 - desplazamiento);
+    total = 42;
+    titulo = `${MESES[mes]} ${año}`;
+  }else{
+    const d = new Date(calRef);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    inicio = d; total = 7;
+    const fin = new Date(d); fin.setDate(d.getDate() + 6);
+    titulo = `Semana del ${d.getDate()} de ${MESES[d.getMonth()]} al ${fin.getDate()} de ${MESES[fin.getMonth()]}`;
+  }
+
+  let celdas = '';
+  for (let i = 0; i < total; i++){
+    const d = new Date(inicio); d.setDate(inicio.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const fuera = calModo === 'mes' && d.getMonth() !== mes;
+    const delDia = eventos.filter(ev => ev.diario ? (!fuera && iso >= hoy) : ev.fecha === iso)
+      .sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
+    celdas += `<div class="cal-celda ${fuera ? 'fuera' : ''} ${iso === hoy ? 'hoy' : ''}">
+      <span class="cal-num">${d.getDate()}</span>
+      ${delDia.slice(0, 4).map(ev => `<button class="cal-evento ev-${ev.tipo}"
+          onclick="detalleEventoCalendario('${ev.tipo}','${ev.id || ''}',${ev.indice ?? 'null'},'${iso}')">
+          ${ev.hora ? horaLegible(ev.hora).replace(' ', '') + ' ' : ''}${esc(ev.titulo)}</button>`).join('')}
+      ${delDia.length > 4 ? `<span class="tenue" style="font-size:.68rem">+${delDia.length - 4} más</span>` : ''}
+    </div>`;
+  }
+
+  $('#vista-calendario').innerHTML = `
+    <div class="tarjeta">
+      <div class="cal-cabecera">
+        <div class="fila">
+          <button onclick="moverCalendario(-1)" aria-label="Anterior">←</button>
+          <button onclick="irHoy()">Hoy</button>
+          <button onclick="moverCalendario(1)" aria-label="Siguiente">→</button>
+        </div>
+        <div class="cal-titulo">${esc(titulo)}</div>
+        <div class="fila">
+          <button class="${calModo === 'mes' ? 'btn-primario' : ''}" onclick="cambiarModoCal('mes')">Mes</button>
+          <button class="${calModo === 'semana' ? 'btn-primario' : ''}" onclick="cambiarModoCal('semana')">Semana</button>
+        </div>
+      </div>
+      <div class="cal-rejilla">
+        ${DIAS.map(d => `<div class="cal-dia-nombre">${d.slice(0,3)}</div>`).join('')}
+        ${celdas}
+      </div>
+      <div class="leyenda">
+        <span><span class="punto" style="background:var(--azul)"></span>Citas médicas</span>
+        <span><span class="punto" style="background:var(--naranja)"></span>Exámenes programados</span>
+        <span><span class="punto" style="background:var(--verde)"></span>Tomas de medicamentos</span>
+        <label style="display:flex; align-items:center; gap:.35rem; font-weight:600; color:var(--tenue)">
+          <input type="checkbox" style="width:auto" ${DB.config.mostrarMedsCalendario ? 'checked' : ''}
+                 onchange="DB.config.mostrarMedsCalendario=this.checked; guardarDatos(); RENDER.calendario()">
+          Mostrar tomas de medicamentos
+        </label>
+      </div>
+    </div>`;
+};
+function moverCalendario(n){
+  if (calModo === 'mes') calRef.setMonth(calRef.getMonth() + n);
+  else calRef.setDate(calRef.getDate() + 7 * n);
+  RENDER.calendario();
+}
+function irHoy(){ calRef = new Date(); RENDER.calendario(); }
+function cambiarModoCal(m){ calModo = m; RENDER.calendario(); }
+
+function detalleEventoCalendario(tipo, id, indice, iso){
+  if (tipo === 'cita') return detalleCita(id);
+  if (tipo === 'examen'){
+    const lista = todosLosExamenes(perfil());
+    const x = lista[indice];
+    if (!x) return;
+    abrirModal('Examen programado', `
+      <h3>${esc(x.ref.nombre)}</h3>
+      <p>${etiquetaEstado(x.ref.estado)}</p>
+      <p><strong>Fecha:</strong> ${fechaLegible(x.ref.fechaProgramada)}</p>
+      <p><strong>Lugar:</strong> ${esc(x.ref.lugar || '—')}</p>
+      <p><strong>Preparación:</strong> ${esc(x.ref.instrucciones || '—')}</p>
+      <p class="tenue">${esc(x.origen)}</p>`);
+    return;
+  }
+  const m = perfil().medicamentosIndependientes.find(x => x.id === id);
+  if (m) abrirModal('Toma de medicamento', `
+    <h3>💊 ${esc(m.nombre)}</h3>
+    <p>${esc(m.dosis || '')} ${m.frecuencia ? '· ' + esc(m.frecuencia) : ''}</p>
+    <p><strong>Horarios:</strong> ${(m.tomasDiarias || []).map(t => horaLegible(t.hora)).join(', ') || '—'}</p>
+    <p class="tenue">${esc(m.observaciones || '')}</p>
+    <p><a href="#medicamentos" onclick="cerrarModal()">Ir a marcar las tomas de hoy →</a></p>`);
+}
+
+/* =====================================================================
+   DIRECTORIO TELEFÓNICO
+   ===================================================================== */
+RENDER.directorio = function(){
+  const p = perfil();
+  const lista = ordenar(p.contactosAgendamiento, orden.contactos, (c, campo) => c[campo]);
+  $('#vista-directorio').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <h2>📞 Directorio para agendar</h2>
+        <button class="btn-primario" onclick="formularioContacto()">+ Agregar contacto</button>
+      </div>
+    </div>
+    <div class="rejilla">
+      ${lista.length ? lista.map(c => `
+        <div class="tarjeta" style="border-left:5px solid ${c.tipo === 'IPS' ? 'var(--azul)' : 'var(--morado)'}">
+          <div class="entre">
+            <h3 style="margin-bottom:.15rem">${esc(c.entidad)}</h3>
+            <span class="etq ${c.tipo === 'IPS' ? 'etq-azul' : 'etq-morada'}">${esc(c.tipo)}</span>
+          </div>
+          <p style="margin:.2rem 0"><strong>${esc(c.telefono)}</strong></p>
+          <p class="tenue" style="margin:.2rem 0">${c.horario ? '🕘 ' + esc(c.horario) : 'Sin horario registrado'}</p>
+          ${c.notas ? `<p class="tenue" style="margin:.2rem 0">${esc(c.notas)}</p>` : ''}
+          <div class="fila" style="margin-top:.7rem">
+            <a class="boton btn-primario" href="tel:${esc(String(c.telefono).replace(/[^\d+]/g,''))}">Llamar</a>
+            ${c.whatsapp ? `<a class="boton btn-verde" target="_blank" rel="noopener"
+                href="https://wa.me/${esc(String(c.telefono).replace(/[^\d]/g,''))}">WhatsApp</a>` : ''}
+            <button class="btn-mini" onclick="formularioContacto('${c.id}')">Editar</button>
+            <button class="btn-mini btn-peligro" onclick="eliminarContacto('${c.id}')">Borrar</button>
+          </div>
+        </div>`).join('') : '<div class="tarjeta"><p class="vacio">Aún no hay contactos. Agrega la IPS o el consultorio al que llamas para pedir citas.</p></div>'}
+    </div>`;
+};
+
+function formularioContacto(id){
+  const p = perfil();
+  const c = id ? p.contactosAgendamiento.find(x => x.id === id) : null;
+  abrirModal(c ? 'Editar contacto' : 'Nuevo contacto', `
+    <div class="campo"><label for="coEntidad">Entidad o consultorio *</label>
+      <input id="coEntidad" value="${esc(c ? c.entidad : '')}" placeholder="Ej.: IPS Sura Girón"></div>
+    <div class="campos-2">
+      <div class="campo"><label for="coTipo">Tipo</label><select id="coTipo">
+        <option ${c && c.tipo === 'IPS' ? 'selected' : ''}>IPS</option>
+        <option ${c && c.tipo === 'Particular' ? 'selected' : ''}>Particular</option></select></div>
+      <div class="campo"><label for="coTel">Teléfono *</label>
+        <input id="coTel" value="${esc(c ? c.telefono : '')}" placeholder="Ej.: 573001234567"></div>
+    </div>
+    <div class="campo"><label><input type="checkbox" id="coWa" style="width:auto" ${c && c.whatsapp ? 'checked' : ''}> Acepta WhatsApp</label>
+      <p class="tenue">Para que el botón de WhatsApp funcione, escribe el número con indicativo del país y sin espacios.</p></div>
+    <div class="campo"><label for="coHorario">Horario de atención</label>
+      <input id="coHorario" value="${esc(c ? c.horario : '')}" placeholder="Ej.: lunes a viernes, 7:00 a.m. a 5:00 p.m."></div>
+    <div class="campo"><label for="coNotas">Notas</label><textarea id="coNotas">${esc(c ? c.notas : '')}</textarea></div>
+  `, () => {
+    if (!validar(['coEntidad','coTel'])) return;
+    const datos = { entidad: val('coEntidad'), tipo: val('coTipo'), telefono: val('coTel'),
+                    whatsapp: chk('coWa'), horario: val('coHorario'), notas: val('coNotas') };
+    if (c) Object.assign(c, datos);
+    else p.contactosAgendamiento.push(Object.assign({ id: uid() }, datos));
+    cerrarModal(); refrescar(); aviso('Contacto guardado.');
+  });
+}
+function eliminarContacto(id){
+  const p = perfil();
+  const c = p.contactosAgendamiento.find(x => x.id === id);
+  abrirModal('Eliminar contacto', `<p>Se eliminará <strong>${esc(c.entidad)}</strong> del directorio.</p>`, () => {
+    p.contactosAgendamiento = p.contactosAgendamiento.filter(x => x.id !== id);
+    cerrarModal(); refrescar(); aviso('Contacto eliminado.');
+  }, { textoGuardar: 'Eliminar' });
+}
+
+/* =====================================================================
+   PLAN NUTRICIONAL
+   ===================================================================== */
+let planActivoId = null;
+
+RENDER.nutricion = function(){
+  const p = perfil();
+  if (!p.planesNutricionales.some(x => x.id === planActivoId))
+    planActivoId = p.planesNutricionales[0] ? p.planesNutricionales[0].id : null;
+  const plan = p.planesNutricionales.find(x => x.id === planActivoId);
+
+  $('#vista-nutricion').innerHTML = `
+    <div class="tarjeta">
+      <div class="entre">
+        <h2>🥗 Planes de alimentación</h2>
+        <div class="fila">
+          ${p.planesNutricionales.length ? `<select id="selPlan" style="width:auto; min-width:180px">
+            ${p.planesNutricionales.map(x => `<option value="${x.id}" ${x.id === planActivoId ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}
+          </select>` : ''}
+          <button class="btn-primario" onclick="formularioPlan()">+ Nuevo plan</button>
+        </div>
+      </div>
+    </div>
+    ${plan ? `
+    <div class="tarjeta">
+      <div class="entre">
+        <h3 style="margin:0">${esc(plan.nombre)}</h3>
+        <div class="fila">
+          <button class="btn-verde" onclick="imprimirPlan('${plan.id}')">🖨️ Imprimir plan</button>
+          <button class="btn-mini" onclick="formularioPlan('${plan.id}')">Renombrar</button>
+          <button class="btn-mini btn-peligro" onclick="eliminarPlan('${plan.id}')">Borrar plan</button>
+        </div>
+      </div>
+      ${plan.notas ? `<p class="tenue">${esc(plan.notas)}</p>` : ''}
+      <div class="tabla-envoltura" style="margin-top:.6rem">
+        <table>
+          <thead><tr><th>Día</th><th>Desayuno</th><th>Almuerzo</th><th>Cena</th><th>Snacks</th><th>Observaciones</th><th></th></tr></thead>
+          <tbody>
+          ${DIAS.map(d => {
+            const c = (plan.comidas || []).find(x => x.dia === d) || { dia: d };
+            return `<tr>
+              <td><strong>${d}</strong></td>
+              <td style="white-space:pre-wrap">${esc(c.desayuno || '')}</td>
+              <td style="white-space:pre-wrap">${esc(c.almuerzo || '')}</td>
+              <td style="white-space:pre-wrap">${esc(c.cena || '')}</td>
+              <td style="white-space:pre-wrap">${esc(c.snacks || '')}</td>
+              <td class="tenue" style="white-space:pre-wrap">${esc(c.observaciones || '')}</td>
+              <td><button class="btn-mini" onclick="editarDiaPlan('${plan.id}','${d}')">Editar</button></td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : '<div class="tarjeta"><p class="vacio">No hay planes creados. Crea uno para registrar lo que indicó el nutricionista.</p></div>'}`;
+
+  const sel = $('#selPlan');
+  if (sel) sel.addEventListener('change', e => { planActivoId = e.target.value; RENDER.nutricion(); });
+};
+
+function formularioPlan(id){
+  const p = perfil();
+  const plan = id ? p.planesNutricionales.find(x => x.id === id) : null;
+  abrirModal(plan ? 'Renombrar plan' : 'Nuevo plan de alimentación', `
+    <div class="campo"><label for="plNombre">Nombre del plan *</label>
+      <input id="plNombre" value="${esc(plan ? plan.nombre : '')}" placeholder="Ej.: Plan para diabetes"></div>
+    <div class="campo"><label for="plNotas">Notas generales</label>
+      <textarea id="plNotas" placeholder="Ej.: indicado por la nutricionista Ana Ruiz el 12 de junio">${esc(plan ? plan.notas || '' : '')}</textarea></div>
+  `, () => {
+    if (!validar(['plNombre'])) return;
+    if (plan){ plan.nombre = val('plNombre'); plan.notas = val('plNotas'); }
+    else{
+      const nuevo = { id: uid(), nombre: val('plNombre'), notas: val('plNotas'), comidas: DIAS.map(d => ({ dia: d, desayuno: '', almuerzo: '', cena: '', snacks: '', observaciones: '' })) };
+      p.planesNutricionales.push(nuevo);
+      planActivoId = nuevo.id;
+    }
+    cerrarModal(); refrescar(); aviso('Plan guardado.');
+  });
+}
+function editarDiaPlan(idPlan, dia){
+  const plan = perfil().planesNutricionales.find(x => x.id === idPlan);
+  plan.comidas = plan.comidas || [];
+  let c = plan.comidas.find(x => x.dia === dia);
+  if (!c){ c = { dia, desayuno: '', almuerzo: '', cena: '', snacks: '', observaciones: '' }; plan.comidas.push(c); }
+  abrirModal(dia + ' — ' + plan.nombre, `
+    <div class="campo"><label for="nDes">Desayuno</label><textarea id="nDes">${esc(c.desayuno)}</textarea></div>
+    <div class="campo"><label for="nAlm">Almuerzo</label><textarea id="nAlm">${esc(c.almuerzo)}</textarea></div>
+    <div class="campo"><label for="nCen">Cena</label><textarea id="nCen">${esc(c.cena)}</textarea></div>
+    <div class="campo"><label for="nSna">Snacks</label><textarea id="nSna">${esc(c.snacks)}</textarea></div>
+    <div class="campo"><label for="nObs">Observaciones</label><textarea id="nObs">${esc(c.observaciones)}</textarea></div>
+  `, () => {
+    Object.assign(c, { desayuno: val('nDes'), almuerzo: val('nAlm'), cena: val('nCen'), snacks: val('nSna'), observaciones: val('nObs') });
+    cerrarModal(); refrescar(); aviso('Día actualizado.');
+  });
+}
+function eliminarPlan(id){
+  const p = perfil();
+  const plan = p.planesNutricionales.find(x => x.id === id);
+  abrirModal('Eliminar plan', `<p>Se eliminará el plan <strong>${esc(plan.nombre)}</strong> con todas sus comidas.</p>`, () => {
+    p.planesNutricionales = p.planesNutricionales.filter(x => x.id !== id);
+    planActivoId = null;
+    cerrarModal(); refrescar(); aviso('Plan eliminado.');
+  }, { textoGuardar: 'Eliminar' });
+}
+
+/* Genera la hoja imprimible y abre el diálogo de impresión. */
+function imprimirPlan(id){
+  const p = perfil();
+  const plan = p.planesNutricionales.find(x => x.id === id);
+  const fecha = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' });
+  $('#areaImpresion').innerHTML = `
+    <h1>${esc(plan.nombre)}</h1>
+    <div class="meta-impresion">
+      <strong>Paciente:</strong> ${esc(p.nombre)}${p.fechaNacimiento ? ' · ' + (edad(p.fechaNacimiento) ?? '') + ' años' : ''}<br>
+      <strong>Generado:</strong> ${fecha}
+      ${plan.notas ? '<br><strong>Notas:</strong> ' + esc(plan.notas) : ''}
+    </div>
+    <table>
+      <thead><tr><th>Día</th><th>Desayuno</th><th>Almuerzo</th><th>Cena</th><th>Snacks</th><th>Observaciones</th></tr></thead>
+      <tbody>${DIAS.map(d => {
+        const c = (plan.comidas || []).find(x => x.dia === d) || {};
+        return `<tr><td><strong>${d}</strong></td><td>${esc(c.desayuno || '')}</td><td>${esc(c.almuerzo || '')}</td>
+          <td>${esc(c.cena || '')}</td><td>${esc(c.snacks || '')}</td><td>${esc(c.observaciones || '')}</td></tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  window.print();
+}
+
+/* =====================================================================
+   BÚSQUEDA GLOBAL
+   ===================================================================== */
+$('#busquedaGlobal').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!perfil()) return;
+  if (!q){ router(); return; }
+  const p = perfil();
+  const coincide = (...campos) => campos.some(c => String(c || '').toLowerCase().includes(q));
+  const citas = p.citas.filter(c => coincide(c.especialidad, c.doctor, c.lugar, c.notas, c.recomendaciones, c.tipo));
+  const meds = p.medicamentosIndependientes.filter(m => coincide(m.nombre, m.dosis, m.frecuencia, m.observaciones));
+  const exs = todosLosExamenes(p).filter(x => coincide(x.ref.nombre, x.ref.lugar, x.ref.instrucciones));
+  const cts = p.contactosAgendamiento.filter(c => coincide(c.entidad, c.telefono, c.horario, c.notas));
+  const planes = p.planesNutricionales.filter(x => coincide(x.nombre, x.notas) ||
+    (x.comidas || []).some(c => coincide(c.desayuno, c.almuerzo, c.cena, c.snacks, c.observaciones)));
+
+  $$('.vista').forEach(s => s.classList.remove('activa'));
+  const v = $('#vista-busqueda');
+  v.classList.add('activa');
+  const total = citas.length + meds.length + exs.length + cts.length + planes.length;
+  v.innerHTML = `
+    <div class="tarjeta">
+      <h2>Resultados para “${esc(e.target.value)}”</h2>
+      <p class="tenue">${total} coincidencia(s) en el perfil de ${esc(p.nombre)}.</p>
+    </div>
+    ${total === 0 ? '<div class="tarjeta"><p class="vacio">No hay coincidencias. Prueba con otra palabra.</p></div>' : ''}
+    ${citas.length ? `<div class="tarjeta"><h3>🩺 Citas</h3>${citas.map(c =>
+      `<p style="margin:.3rem 0"><a href="javascript:void(0)" onclick="detalleCita('${c.id}')">${esc(c.especialidad)}</a>
+       <span class="tenue">· ${fechaLegible(c.fecha)} · ${esc(c.doctor || '')}</span></p>`).join('')}</div>` : ''}
+    ${meds.length ? `<div class="tarjeta"><h3>💊 Medicamentos</h3>${meds.map(m =>
+      `<p style="margin:.3rem 0">${esc(m.nombre)} <span class="tenue">· ${esc(m.dosis || '')} ${m.activo ? '' : '(suspendido)'}</span></p>`).join('')}</div>` : ''}
+    ${exs.length ? `<div class="tarjeta"><h3>🧪 Exámenes</h3>${exs.map(x =>
+      `<p style="margin:.3rem 0">${esc(x.ref.nombre)} <span class="tenue">· ${x.ref.fechaProgramada ? fechaLegible(x.ref.fechaProgramada) : 'sin agendar'}</span></p>`).join('')}</div>` : ''}
+    ${cts.length ? `<div class="tarjeta"><h3>📞 Contactos</h3>${cts.map(c =>
+      `<p style="margin:.3rem 0">${esc(c.entidad)} <span class="tenue">· ${esc(c.telefono)}</span></p>`).join('')}</div>` : ''}
+    ${planes.length ? `<div class="tarjeta"><h3>🥗 Planes de alimentación</h3>${planes.map(x =>
+      `<p style="margin:.3rem 0"><a href="#nutricion" onclick="planActivoId='${x.id}'">${esc(x.nombre)}</a></p>`).join('')}</div>` : ''}`;
+});
+
+/* =====================================================================
+   NOTIFICACIONES Y RECORDATORIOS
+   ===================================================================== */
+function pedirPermisoNotificaciones(){
+  if (!('Notification' in window)){ aviso('Este navegador no permite notificaciones.'); return; }
+  Notification.requestPermission().then(res => {
+    if (res === 'granted'){
+      DB.config.notificaciones = true; guardarDatos(); programarRecordatorios();
+      new Notification('Salud Familiar', { body: 'Los recordatorios quedaron activos.' });
+      aviso('Recordatorios activados.');
+    }else{
+      DB.config.notificaciones = false; guardarDatos();
+      aviso('El navegador bloqueó las notificaciones.');
+    }
+  });
+}
+const yaAvisado = new Set();
+function programarRecordatorios(){
+  clearInterval(temporizadorRecordatorios);
+  if (!DB.config.notificaciones || !('Notification' in window) || Notification.permission !== 'granted') return;
+  temporizadorRecordatorios = setInterval(() => {
+    const ahora = new Date();
+    const hm = String(ahora.getHours()).padStart(2,'0') + ':' + String(ahora.getMinutes()).padStart(2,'0');
+    DB.perfiles.forEach(p => {
+      p.medicamentosIndependientes.filter(m => m.activo).forEach(m => {
+        (m.tomasDiarias || []).forEach(t => {
+          const llave = `${hoyISO()}|${m.id}|${t.hora}`;
+          if (t.hora === hm && !yaAvisado.has(llave)){
+            yaAvisado.add(llave);
+            new Notification('💊 ' + m.nombre, { body: `${p.nombre}: toma de las ${horaLegible(t.hora)}. ${m.dosis || ''}`, tag: llave });
+          }
+        });
+      });
+      // recordatorio de cita el mismo día
+      p.citas.filter(c => !c.realizada && c.fecha === hoyISO() && c.hora).forEach(c => {
+        const llave = `cita|${c.id}`;
+        if (c.hora === hm && !yaAvisado.has(llave)){
+          yaAvisado.add(llave);
+          new Notification('🩺 Cita hoy', { body: `${p.nombre}: ${c.especialidad} en ${c.lugar || 'el sitio acordado'}.`, tag: llave });
+        }
+      });
+    });
+    // resumen diario del panel
+    if (hm === (DB.config.horaResumen || '08:00') && !yaAvisado.has('resumen|' + hoyISO())){
+      yaAvisado.add('resumen|' + hoyISO());
+      new Notification('Salud Familiar', { body: 'Revisa el panel de hoy: citas, exámenes y medicamentos.' });
+    }
+  }, 60000);
+}
+
+/* =====================================================================
+   CONFIGURACIÓN, RESPALDO Y PIN
+   ===================================================================== */
+RENDER.configuracion = function(){
+  const respaldo = localStorage.getItem(CLAVE_RESPALDO);
+  let marca = '—';
+  try{ if (respaldo) marca = new Date(JSON.parse(respaldo).marca).toLocaleString('es-CO'); }catch(e){}
+  const tamano = (localStorage.getItem(CLAVE) || '').length;
+
+  $('#vista-configuracion').innerHTML = `
+    <div class="tarjeta">
+      <h2>⚙️ Configuración</h2>
+      <div class="campos-2" style="margin-top:.8rem">
+        <div class="campo"><label for="cfgDias">Avisar si un examen lleva más de X días sin agendar</label>
+          <input id="cfgDias" type="number" min="1" max="180" value="${Number(DB.config.diasAlertaExamen) || 15}"></div>
+        <div class="campo"><label for="cfgHora">Hora del recordatorio diario</label>
+          <input id="cfgHora" type="time" value="${esc(DB.config.horaResumen || '08:00')}"></div>
+      </div>
+      <div class="campo"><label><input type="checkbox" id="cfgRespaldo" style="width:auto" ${DB.config.respaldoAutomatico ? 'checked' : ''}>
+        Guardar una copia de seguridad automática en este navegador</label></div>
+      <div class="fila">
+        <button class="btn-primario" onclick="guardarConfig()">Guardar cambios</button>
+        <button onclick="pedirPermisoNotificaciones()">🔔 Activar notificaciones</button>
+      </div>
+      <p class="tenue" style="margin-top:.6rem">Última copia automática: ${esc(marca)} · Datos guardados: ${(tamano/1024).toFixed(1)} KB</p>
+    </div>
+
+    <div class="tarjeta">
+      <h3>🔐 PIN de acceso</h3>
+      <p class="tenue">Los datos de salud se guardan solo en este dispositivo. El PIN evita que alguien abra la app por accidente; no cifra la información.</p>
+      <div class="fila">
+        <button class="btn-primario" onclick="configurarPin()">${DB.config.pinHash ? 'Cambiar PIN' : 'Crear PIN'}</button>
+        ${DB.config.pinHash ? '<button class="btn-peligro" onclick="quitarPin()">Quitar PIN</button>' : ''}
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>💾 Respaldo</h3>
+      <p class="tenue">Exporta un archivo JSON con todos los perfiles. Guárdalo en un lugar seguro: contiene información de salud.</p>
+      <div class="fila">
+        <button class="btn-verde" onclick="exportarJSON()">Exportar datos</button>
+        <button onclick="$('#archivoImportar').click()">Importar datos</button>
+        <input type="file" id="archivoImportar" accept="application/json" style="display:none" onchange="importarJSON(this)">
+        ${respaldo ? '<button onclick="restaurarRespaldo()">Restaurar última copia automática</button>' : ''}
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>📱 Instalación</h3>
+      <p class="tenue">Puedes instalar la app en el celular o el computador y usarla sin conexión.</p>
+      <button id="btnInstalar" class="btn-primario" ${eventoInstalacion ? '' : 'disabled'} onclick="instalarApp()">
+        ${eventoInstalacion ? 'Instalar aplicación' : 'Instalar (usa el menú del navegador)'}
+      </button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>👪 Perfiles</h3>
+      ${DB.perfiles.map(p => `<div class="entre" style="padding:.4rem 0; border-bottom:1px solid var(--borde)">
+        <span>${esc(p.nombre)} <span class="tenue">· ${p.citas.length} citas</span></span>
+        <div class="fila">
+          <button class="btn-mini" onclick="formularioPerfil('${p.id}')">Editar</button>
+          <button class="btn-mini btn-peligro" onclick="eliminarPerfil('${p.id}')">Eliminar</button>
+        </div></div>`).join('')}
+      <button class="btn-primario" style="margin-top:.7rem" onclick="formularioPerfil()">+ Agregar miembro</button>
+    </div>`;
+};
+
+function guardarConfig(){
+  DB.config.diasAlertaExamen = Number(val('cfgDias')) || 15;
+  DB.config.horaResumen = val('cfgHora') || '08:00';
+  DB.config.respaldoAutomatico = chk('cfgRespaldo');
+  guardarDatos(); aviso('Configuración guardada.');
+}
+function exportarJSON(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `salud-familiar-${hoyISO()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  aviso('Archivo exportado.');
+}
+function importarJSON(input){
+  const archivo = input.files[0];
+  if (!archivo) return;
+  const lector = new FileReader();
+  lector.onload = () => {
+    let datos;
+    try{ datos = JSON.parse(lector.result); }
+    catch(e){ aviso('El archivo no es un JSON válido.'); return; }
+    if (!datos || !Array.isArray(datos.perfiles)){ aviso('El archivo no tiene el formato de Salud Familiar.'); return; }
+    abrirModal('Importar datos', `<p>El archivo contiene <strong>${datos.perfiles.length} perfil(es)</strong>.</p>
+      <p class="mensaje-error">Al continuar se reemplazan todos los datos actuales de este navegador. Exporta antes si quieres conservarlos.</p>`, () => {
+      DB = datos;
+      cargarDesdeObjeto();
+      cerrarModal(); pintarSelectorPerfiles(); router();
+      aviso('Datos importados.');
+    }, { textoGuardar: 'Reemplazar todo' });
+    input.value = '';
+  };
+  lector.readAsText(archivo);
+}
+function cargarDesdeObjeto(){
+  localStorage.setItem(CLAVE, JSON.stringify(DB));
+  cargarDatos();
+  programarRecordatorios();
+}
+function restaurarRespaldo(){
+  const r = localStorage.getItem(CLAVE_RESPALDO);
+  if (!r) return;
+  abrirModal('Restaurar copia', '<p class="mensaje-error">Se reemplazarán los datos actuales por la última copia automática.</p>', () => {
+    try{
+      DB = JSON.parse(r).datos;
+      cargarDesdeObjeto();
+      cerrarModal(); pintarSelectorPerfiles(); router(); aviso('Copia restaurada.');
+    }catch(e){ aviso('La copia está dañada.'); }
+  }, { textoGuardar: 'Restaurar' });
+}
+
+/* PIN: se guarda un hash simple con btoa; sirve como barrera básica, no como cifrado. */
+const hashPin = pin => btoa('sf::' + pin);
+function configurarPin(){
+  abrirModal('PIN de acceso', `
+    <div class="campo"><label for="pin1">Nuevo PIN (4 dígitos)</label>
+      <input id="pin1" type="password" inputmode="numeric" maxlength="4"></div>
+    <div class="campo"><label for="pin2">Repite el PIN</label>
+      <input id="pin2" type="password" inputmode="numeric" maxlength="4"></div>
+  `, () => {
+    const a = val('pin1'), b = val('pin2');
+    if (!/^\d{4}$/.test(a)){ aviso('El PIN debe tener 4 dígitos.'); return; }
+    if (a !== b){ aviso('Los PIN no coinciden.'); return; }
+    DB.config.pinHash = hashPin(a);
+    guardarDatos(); cerrarModal(); router(); aviso('PIN configurado.');
+  });
+}
+function quitarPin(){
+  abrirModal('Quitar PIN', '<p>La app se abrirá directamente, sin pedir PIN.</p>', () => {
+    DB.config.pinHash = null; guardarDatos(); cerrarModal(); router(); aviso('PIN eliminado.');
+  }, { textoGuardar: 'Quitar PIN' });
+}
+function verificarPin(){
+  const v = $('#entradaPin').value;
+  if (hashPin(v) === DB.config.pinHash){
+    $('#pantallaPin').classList.remove('abierta');
+    iniciarApp();
+  }else{
+    $('#errorPin').style.display = 'block';
+    $('#entradaPin').value = '';
+    $('#entradaPin').focus();
+  }
+}
+$('#btnEntrarPin').addEventListener('click', verificarPin);
+$('#entradaPin').addEventListener('keydown', e => { if (e.key === 'Enter') verificarPin(); });
+
+/* =====================================================================
+   PWA: service worker e instalación
+   ===================================================================== */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker no registrado:', err));
+  });
+}
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  eventoInstalacion = e;
+  const b = $('#btnInstalar');
+  if (b){ b.disabled = false; b.textContent = 'Instalar aplicación'; }
+});
+function instalarApp(){
+  if (!eventoInstalacion) return;
+  eventoInstalacion.prompt();
+  eventoInstalacion.userChoice.then(() => { eventoInstalacion = null; });
+}
+
+/* =====================================================================
+   ARRANQUE
+   ===================================================================== */
+function iniciarApp(){
+  pintarSelectorPerfiles();
+  if (!location.hash) location.hash = '#dashboard';
+  router();
+  programarRecordatorios();
+}
+cargarDatos();
+if (DB.config.pinHash){
+  $('#pantallaPin').classList.add('abierta');
+  setTimeout(() => $('#entradaPin').focus(), 100);
+}else{
+  iniciarApp();
+}
+
+</script>
+</body>
+</html>
