@@ -180,11 +180,11 @@ td.acciones{white-space:nowrap}
 }
 
 /* ============ PIN ============ */
-#pantallaPin{
+#pantallaPin, #pantallaLogin{
   position:fixed; inset:0; background:linear-gradient(160deg,#2563eb,#1e40af); z-index:300;
   display:none; align-items:center; justify-content:center; padding:1rem;
 }
-#pantallaPin.abierta{display:flex}
+#pantallaPin.abierta, #pantallaLogin.abierta{display:flex}
 .caja-pin{background:#fff; border-radius:16px; padding:1.6rem; width:100%; max-width:330px; text-align:center}
 .caja-pin input{text-align:center; letter-spacing:.6em; font-size:1.4rem; padding:.6rem}
 
@@ -213,6 +213,23 @@ td.acciones{white-space:nowrap}
 </style>
 </head>
 <body>
+
+<!-- ============ PANTALLA DE INICIO DE SESIÓN (sincronización) ============ -->
+<div id="pantallaLogin" class="abierta" role="dialog" aria-modal="true" aria-label="Acceso a la cuenta familiar">
+  <div class="caja-pin" style="max-width:360px">
+    <div style="font-size:2.2rem">☁️</div>
+    <h2>Salud Familiar</h2>
+    <p class="tenue">Usa la misma cuenta en todos los dispositivos de la familia para mantener la información sincronizada.</p>
+    <div class="campo" style="text-align:left"><label for="loginCorreo">Correo</label>
+      <input id="loginCorreo" type="email" autocomplete="username" placeholder="familia@correo.com"></div>
+    <div class="campo" style="text-align:left"><label for="loginClave">Contraseña</label>
+      <input id="loginClave" type="password" autocomplete="current-password"></div>
+    <p id="errorLogin" class="mensaje-error" style="display:none"></p>
+    <button class="btn-primario" id="btnEntrarSesion" style="width:100%; justify-content:center; margin-top:.3rem">Iniciar sesión</button>
+    <button id="btnCrearCuenta" style="width:100%; justify-content:center; margin-top:.5rem">Crear la cuenta de la familia</button>
+    <p class="tenue" style="margin-top:.8rem"><a href="javascript:void(0)" id="linkOlvide">¿Olvidaste tu contraseña?</a></p>
+  </div>
+</div>
 
 <!-- ============ PANTALLA DE PIN ============ -->
 <div id="pantallaPin" role="dialog" aria-modal="true" aria-label="Acceso con PIN">
@@ -284,21 +301,46 @@ td.acciones{white-space:nowrap}
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="areaImpresion"></div>
 
+<!-- SDK de Firebase (autenticación + Firestore) para la sincronización entre dispositivos -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
 <script>
 /* =====================================================================
-   SALUD FAMILIAR — aplicación de una sola página, sin dependencias.
-   Todo se guarda en localStorage bajo la clave "saludFamiliarData".
+   SALUD FAMILIAR — aplicación de una sola página.
+   Los datos viven en Firebase (Firestore) y se sincronizan en tiempo real
+   entre todos los dispositivos que inicien sesión con la misma cuenta.
    ===================================================================== */
 
-const CLAVE = 'saludFamiliarData';
-const CLAVE_RESPALDO = 'saludFamiliarData_respaldo';
 const DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+/* ---------- prompts para el importador de texto con IA ---------- */
+const PROMPT_CITAS = `Eres un asistente que extrae datos de citas médicas a partir de texto libre (puede venir de un OCR de una foto, una orden médica o un mensaje escrito por el usuario).
+Responde ÚNICAMENTE con un arreglo JSON válido, sin texto adicional, sin explicaciones y sin bloques de markdown. Cada elemento debe tener EXACTAMENTE esta forma:
+{"fecha":"YYYY-MM-DD o cadena vacía","hora":"HH:MM en formato 24h o cadena vacía","especialidad":"","doctor":"","lugar":"","tipo":"IPS o Particular, cadena vacía si no se sabe","medioAgendamiento":"","notas":""}
+Si el texto describe una sola cita, devuelve un arreglo con un solo elemento. Si describe varias citas, un elemento por cada una.
+Nunca inventes datos que no estén en el texto ni en fechas relativas resolubles: deja el campo como cadena vacía si no se puede determinar con certeza. Hoy es 2026-07-29, úsalo solo para resolver referencias relativas explícitas como "el próximo martes".`;
+
+const PROMPT_EXAMENES = `Eres un asistente que extrae datos de exámenes médicos (laboratorio, imágenes diagnósticas, procedimientos) a partir de texto libre.
+Responde ÚNICAMENTE con un arreglo JSON válido, sin texto adicional, sin explicaciones y sin bloques de markdown. Cada elemento debe tener EXACTAMENTE esta forma:
+{"nombre":"","estado":"pendiente, programado o realizado","fechaProgramada":"YYYY-MM-DD o cadena vacía","lugar":"","instrucciones":""}
+Si no hay indicación clara del estado, usa "pendiente". Si el texto describe un solo examen, devuelve un arreglo con un solo elemento; si describe varios, un elemento por cada uno.
+Nunca inventes datos que no estén en el texto: deja el campo como cadena vacía si no se puede determinar. Hoy es 2026-07-29, úsalo solo para resolver referencias relativas explícitas.`;
+
+const PROMPT_NUTRICION = `Eres un asistente que estructura un plan de alimentación semanal a partir de recomendaciones de un nutricionista o médico, dadas en texto libre.
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin explicaciones y sin bloques de markdown, con EXACTAMENTE esta forma:
+{"nombre":"nombre corto y descriptivo del plan","notas":"notas o indicaciones generales del profesional, cadena vacía si no hay","comidas":[{"dia":"Lunes","desayuno":"","almuerzo":"","cena":"","snacks":"","observaciones":""}]}
+El arreglo "comidas" debe tener exactamente un objeto por cada uno de estos 7 días, en este orden: Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo.
+Si el texto da una sola indicación general para todos los días (no día por día), repite esa misma indicación en el campo correspondiente de cada día. Si el texto solo menciona algunos días, deja como cadena vacía los campos de comida de los días no mencionados.
+Nunca inventes alimentos, cantidades ni indicaciones que no estén en el texto.`;
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
 let DB = null;             // base de datos completa en memoria
 let perfilActivoId = null; // id del perfil seleccionado
 let temporizadorRecordatorios = null;
 let eventoInstalacion = null;
+let appIniciada = false;   // ya se mostró el panel al menos una vez en esta sesión
 
 /* ---------- utilidades ---------- */
 const $  = (sel, ctx = document) => ctx.querySelector(sel);
@@ -339,7 +381,47 @@ function aviso(texto){
   t._t = setTimeout(() => t.classList.remove('visible'), 2800);
 }
 
-/* ---------- persistencia ---------- */
+/* ---------- Firebase: cuenta de la familia y sincronización en la nube ----------
+   1) Crea un proyecto gratis en https://console.firebase.google.com
+   2) Activa "Authentication" → método "Correo electrónico/contraseña"
+   3) Crea una base de datos en "Firestore Database" (modo producción, cualquier región)
+   4) En Firestore → Reglas, pega esto y publica:
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /familias/{uid} {
+              allow read, write: if request.auth != null && request.auth.uid == uid;
+            }
+          }
+        }
+   5) En "Configuración del proyecto" → "Tus apps" → app web, copia el objeto de
+      configuración y pégalo abajo, reemplazando los valores de ejemplo. */
+const firebaseConfig = {
+  apiKey: "AIzaSyDzd5XHKqwwrvxC9dYd93ivYn6w7rv-wtk",
+  authDomain: "appmedicaseguimiento.firebaseapp.com",
+  projectId: "appmedicaseguimiento",
+  storageBucket: "appmedicaseguimiento.firebasestorage.app",
+  messagingSenderId: "488656663822",
+  appId: "1:488656663822:web:10fc16b37fd5c6fc1d535f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+try{ db.enablePersistence({ synchronizeTabs: true }); }
+catch(e){ console.warn('Este navegador no admite el caché sin conexión de Firestore:', e); }
+
+/* ---------- clave gratuita de Google Gemini (para el importador de texto con IA) ----------
+   1) Entra a https://aistudio.google.com/apikey con tu cuenta de Google.
+   2) Crea una clave nueva (no pide tarjeta de crédito; el nivel gratuito de Gemini
+      Flash-Lite alcanza de sobra para el uso ocasional de esta app).
+   3) Pega la clave abajo, reemplazando el valor de ejemplo. */
+const GEMINI_API_KEY = 'PEGA_AQUI_TU_CLAVE_GRATUITA_DE_GEMINI';
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+
+let usuarioActual = null;
+let dejarDeEscuchar = null;
+let guardarPendiente = null;
+
 function datosPorDefecto(){
   return {
     perfiles: [],
@@ -348,23 +430,14 @@ function datosPorDefecto(){
       diasAlertaExamen: 15,
       notificaciones: false,
       horaResumen: '08:00',
-      respaldoAutomatico: true,
       mostrarMedsCalendario: true
-    },
-    ultimoPerfil: null
+    }
   };
 }
-function cargarDatos(){
-  try{
-    const crudo = localStorage.getItem(CLAVE);
-    DB = crudo ? JSON.parse(crudo) : datosPorDefecto();
-  }catch(e){
-    console.error('No se pudieron leer los datos guardados', e);
-    DB = datosPorDefecto();
-  }
+/* Rellena campos que puedan faltar (perfiles antiguos, datos recién importados). */
+function normalizarDatos(){
   DB.perfiles = DB.perfiles || [];
   DB.config = Object.assign(datosPorDefecto().config, DB.config || {});
-  // normalizar perfiles antiguos o importados
   DB.perfiles.forEach(p => {
     p.citas = p.citas || [];
     p.medicamentosIndependientes = p.medicamentosIndependientes || [];
@@ -380,21 +453,47 @@ function cargarDatos(){
       m.registro = m.registro || {};
     });
   });
-  perfilActivoId = DB.perfiles.some(p => p.id === DB.ultimoPerfil)
-    ? DB.ultimoPerfil
-    : (DB.perfiles[0] ? DB.perfiles[0].id : null);
-}
-function guardarDatos(){
-  DB.ultimoPerfil = perfilActivoId;
-  try{
-    localStorage.setItem(CLAVE, JSON.stringify(DB));
-    if (DB.config.respaldoAutomatico){
-      localStorage.setItem(CLAVE_RESPALDO, JSON.stringify({ marca: new Date().toISOString(), datos: DB }));
-    }
-  }catch(e){
-    aviso('No se pudo guardar: el almacenamiento del navegador está lleno. Exporta y borra archivos pesados.');
-    console.error(e);
+  if (!DB.perfiles.some(p => p.id === perfilActivoId)){
+    perfilActivoId = DB.perfiles[0] ? DB.perfiles[0].id : null;
   }
+}
+const docFamilia = () => db.collection('familias').doc(usuarioActual.uid);
+
+/* Escucha los cambios del documento de la familia en tiempo real: un cambio
+   guardado en el iPhone se refleja solo en la PC (y viceversa), sin recargar. */
+function suscribirDatos(){
+  if (dejarDeEscuchar) dejarDeEscuchar();
+  dejarDeEscuchar = docFamilia().onSnapshot(snap => {
+    DB = snap.exists ? snap.data() : datosPorDefecto();
+    if (!snap.exists) docFamilia().set(DB).catch(e => console.error(e));
+    normalizarDatos();
+    if (!appIniciada){
+      appIniciada = true;
+      if (DB.config.pinHash){
+        $('#pantallaPin').classList.add('abierta');
+        setTimeout(() => $('#entradaPin').focus(), 100);
+      }else{
+        iniciarApp();
+      }
+    }else{
+      pintarSelectorPerfiles();
+      router();
+    }
+  }, err => {
+    console.error('Error de sincronización', err);
+    aviso('No se pudo conectar con la nube. Revisa tu conexión a internet.');
+  });
+}
+/* Espera medio segundo antes de escribir, para no mandar una escritura por cada tecla. */
+function guardarDatos(){
+  clearTimeout(guardarPendiente);
+  guardarPendiente = setTimeout(() => {
+    if (!usuarioActual) return;
+    docFamilia().set(DB).catch(e => {
+      console.error(e);
+      aviso('No se pudo guardar en la nube. Revisa tu conexión; el cambio no quedó sincronizado.');
+    });
+  }, 500);
 }
 const perfil = () => DB.perfiles.find(p => p.id === perfilActivoId) || null;
 
@@ -424,6 +523,76 @@ function cerrarModal(){
 }
 $('#fondoModal').addEventListener('click', e => { if (e.target.id === 'fondoModal') cerrarModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+/* ---------- importador de texto con IA ---------- */
+/* Llama a la API gratuita de Google Gemini (nivel Flash-Lite, sin costo) pidiendo que devuelva solo JSON. */
+async function extraerConIA(instruccion, texto){
+  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('PEGA_AQUI')){
+    throw new Error('FALTA_CLAVE');
+  }
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: instruccion + '\n\n--- TEXTO A ANALIZAR ---\n' + texto }] }],
+        generationConfig: { temperature: 0.1 }
+      })
+    }
+  );
+  if (!resp.ok){
+    const detalle = await resp.text().catch(() => '');
+    throw new Error('API_ERROR:' + resp.status + (detalle ? ' ' + detalle.slice(0, 200) : ''));
+  }
+  const data = await resp.json();
+  const partes = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+  const bloque = partes.map(p => p.text || '').join('\n');
+  const limpio = bloque.replace(/```json/gi, '').replace(/```/g, '').trim();
+  return JSON.parse(limpio);
+}
+
+/* Abre el modal de "pegar texto", llama a la IA al confirmar y entrega el resultado a opciones.alExtraer. */
+function abrirImportadorTexto(opciones){
+  abrirModal(opciones.titulo, `
+    <p class="tenue" style="margin-top:0">${opciones.ayuda}</p>
+    <div class="campo"><textarea id="txtImportar" rows="10" placeholder="${esc(opciones.placeholder)}"></textarea></div>
+    <p class="tenue" id="estadoImportar" style="display:none">Extrayendo datos, un momento…</p>
+  `, async () => {
+    const texto = val('txtImportar');
+    if (!texto){ aviso('Pega el texto del que quieres extraer los datos.'); return; }
+    const btn = $('#btnGuardarModal');
+    const estado = $('#estadoImportar');
+    btn.disabled = true; btn.textContent = 'Extrayendo…';
+    estado.style.display = 'block';
+    try{
+      const datos = await extraerConIA(opciones.prompt, texto);
+      cerrarModal();
+      opciones.alExtraer(datos);
+    }catch(err){
+      console.error(err);
+      if ($('#btnGuardarModal')){
+        btn.disabled = false; btn.textContent = 'Extraer datos';
+        estado.style.display = 'none';
+      }
+      if (String(err.message).includes('FALTA_CLAVE')){
+        aviso('Falta configurar la clave gratuita de Gemini en el código de la app (busca GEMINI_API_KEY). Consíguela sin costo en aistudio.google.com/apikey.');
+      }else{
+        aviso('No se pudieron extraer los datos automáticamente. Revisa el texto pegado o ingrésalos manualmente.');
+      }
+    }
+  }, { textoGuardar: 'Extraer datos', ancho: true });
+}
+
+/* Muestra una lista de lo que se va a importar, para confirmar antes de guardar. */
+function previsualizarImportacion(titulo, items, alConfirmar){
+  abrirModal(titulo, `
+    <p class="tenue" style="margin-top:0">Se detectaron ${items.length} registro(s). Revísalos antes de guardar; después podrás editar cada uno desde su pestaña.</p>
+    <div class="tabla-envoltura"><table>
+      <tbody>${items.map(it => `<tr><td><strong>${esc(it.titulo)}</strong><div class="tenue">${esc(it.detalle || '')}</div></td></tr>`).join('')}</tbody>
+    </table></div>
+  `, () => { cerrarModal(); alConfirmar(); }, { textoGuardar: 'Importar todo', ancho: true });
+}
 
 /* Valida los campos marcados como obligatorios dentro del modal. */
 function validar(ids){
@@ -483,8 +652,7 @@ function pintarSelectorPerfiles(){
     `<option value="${p.id}" ${p.id === perfilActivoId ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
 }
 $('#selectorPerfil').addEventListener('change', e => {
-  perfilActivoId = e.target.value;
-  guardarDatos();
+  perfilActivoId = e.target.value; // preferencia local de este dispositivo, no se sincroniza
   router();
 });
 $('#btnNuevoPerfil').addEventListener('click', () => formularioPerfil());
@@ -693,7 +861,10 @@ RENDER.citas = function(){
     <div class="tarjeta">
       <div class="entre">
         <h2>🩺 Citas médicas</h2>
-        <button class="btn-primario" onclick="formularioCita()">+ Agregar cita</button>
+        <div class="fila">
+          <button onclick="importarCitasTexto()">📋 Importar por texto</button>
+          <button class="btn-primario" onclick="formularioCita()">+ Agregar cita</button>
+        </div>
       </div>
       <div class="rejilla" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin-top:.8rem">
         <div><label for="fDesde">Desde</label><input id="fDesde" type="date" value="${filtrosCitas.desde}"></div>
@@ -800,6 +971,35 @@ function formularioCita(id){
     else p.citas.push(Object.assign({ id: uid(), recomendaciones: '', medicamentosRecetados: [], examenesSolicitados: [] }, datos));
     cerrarModal(); refrescar();
     aviso(c ? 'Cita actualizada.' : 'Cita agregada.');
+  });
+}
+
+/* Importa una o varias citas a partir de texto libre (OCR de una foto, mensaje, etc.), usando IA para extraer los campos. */
+function importarCitasTexto(){
+  abrirImportadorTexto({
+    titulo: 'Importar citas por texto',
+    ayuda: 'Pega aquí el texto con los datos de una o varias citas (por ejemplo, el resultado de pasar una foto por OCR, o un mensaje). La IA identificará fecha, hora, especialidad, doctor, lugar y notas.',
+    placeholder: 'Ej.: Cita de control con el Dr. Pérez, cardiología, el 14 de agosto a las 9:00 am en la Clínica San Rafael…',
+    prompt: PROMPT_CITAS,
+    alExtraer: (lista) => {
+      if (!Array.isArray(lista) || !lista.length){ aviso('No se pudo identificar ninguna cita en el texto pegado.'); return; }
+      previsualizarImportacion('Confirmar citas a importar', lista.map(c => ({
+        titulo: `${c.especialidad || 'Cita sin especialidad'} — ${c.fecha ? fechaLegible(c.fecha) : 'sin fecha'}${c.hora ? ' ' + horaLegible(c.hora) : ''}`,
+        detalle: `${c.doctor ? 'Dr(a). ' + c.doctor + ' · ' : ''}${c.lugar || ''}`
+      })), () => {
+        const p = perfil();
+        lista.forEach(c => {
+          p.citas.push({
+            id: uid(), recomendaciones: '', medicamentosRecetados: [], examenesSolicitados: [],
+            fecha: c.fecha || hoyISO(), hora: c.hora || '', especialidad: c.especialidad || '',
+            doctor: c.doctor || '', lugar: c.lugar || '', tipo: c.tipo || 'IPS',
+            medioAgendamiento: c.medioAgendamiento || '', notas: c.notas || '', realizada: false
+          });
+        });
+        guardarDatos(); refrescar();
+        aviso(`${lista.length} cita(s) importada(s). Revísalas y completa lo que falte.`);
+      });
+    }
   });
 }
 
@@ -1046,6 +1246,7 @@ RENDER.examenes = function(){
     <div class="tarjeta">
       <div class="entre">
         <h2>🧪 Exámenes médicos</h2>
+        <button onclick="importarExamenesTexto()">📋 Importar por texto</button>
         <button class="btn-primario" onclick="formularioExamen(null)">+ Agregar examen</button>
       </div>
       <p class="tenue" style="margin:.5rem 0 0">Incluye los exámenes solicitados en cada cita y los que registres por tu cuenta.</p>
@@ -1172,6 +1373,34 @@ function quitarExamen(idCita, i){
   const c = perfil().citas.find(x => x.id === idCita);
   c.examenesSolicitados.splice(i, 1);
   guardarDatos(); detalleCita(idCita);
+}
+
+/* Importa uno o varios exámenes independientes a partir de texto libre, usando IA para extraer los campos. */
+function importarExamenesTexto(){
+  abrirImportadorTexto({
+    titulo: 'Importar exámenes por texto',
+    ayuda: 'Pega aquí el texto con los exámenes solicitados (orden médica, mensaje, resultado de OCR, etc.). La IA identificará nombre, estado, fecha, lugar e instrucciones.',
+    placeholder: 'Ej.: Hemograma completo, en ayunas de 8 horas, programado para el 20 de agosto en el laboratorio Los Andes…',
+    prompt: PROMPT_EXAMENES,
+    alExtraer: (lista) => {
+      if (!Array.isArray(lista) || !lista.length){ aviso('No se pudo identificar ningún examen en el texto pegado.'); return; }
+      previsualizarImportacion('Confirmar exámenes a importar', lista.map(e => ({
+        titulo: e.nombre || 'Examen sin nombre',
+        detalle: `${e.estado || 'pendiente'}${e.fechaProgramada ? ' · ' + fechaLegible(e.fechaProgramada) : ''}${e.lugar ? ' · ' + e.lugar : ''}`
+      })), () => {
+        const p = perfil();
+        p.examenesIndependientes = p.examenesIndependientes || [];
+        lista.forEach(e => {
+          p.examenesIndependientes.push({
+            nombre: e.nombre || '', estado: e.estado || 'pendiente', fechaProgramada: e.fechaProgramada || '',
+            lugar: e.lugar || '', instrucciones: e.instrucciones || '', archivoResultadoBase64: '', archivoNombre: ''
+          });
+        });
+        guardarDatos(); refrescar();
+        aviso(`${lista.length} examen(es) importado(s). Revísalos y completa lo que falte.`);
+      });
+    }
+  });
 }
 
 /* =====================================================================
@@ -1384,6 +1613,7 @@ RENDER.nutricion = function(){
           ${p.planesNutricionales.length ? `<select id="selPlan" style="width:auto; min-width:180px">
             ${p.planesNutricionales.map(x => `<option value="${x.id}" ${x.id === planActivoId ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}
           </select>` : ''}
+          <button onclick="importarNutricionTexto()">📋 Importar por texto</button>
           <button class="btn-primario" onclick="formularioPlan()">+ Nuevo plan</button>
         </div>
       </div>
@@ -1443,6 +1673,33 @@ function formularioPlan(id){
     cerrarModal(); refrescar(); aviso('Plan guardado.');
   });
 }
+/* Importa un plan de alimentación completo a partir del texto de las recomendaciones del profesional, usando IA. */
+function importarNutricionTexto(){
+  abrirImportadorTexto({
+    titulo: 'Importar plan de alimentación por texto',
+    ayuda: 'Pega aquí las recomendaciones del nutricionista o médico (el documento completo, o el texto que sacaste de una foto con OCR). La IA armará la tabla de comidas por día.',
+    placeholder: 'Ej.: Plan indicado por la Dra. Gómez el 3 de julio. Lunes: desayuno avena con fruta picada; almuerzo…',
+    prompt: PROMPT_NUTRICION,
+    alExtraer: (obj) => {
+      if (!obj || !Array.isArray(obj.comidas) || !obj.comidas.length){
+        aviso('No se pudo estructurar un plan a partir del texto pegado.'); return;
+      }
+      const p = perfil();
+      const nuevo = {
+        id: uid(), nombre: obj.nombre || 'Plan importado', notas: obj.notas || '',
+        comidas: DIAS.map(d => {
+          const c = obj.comidas.find(x => x.dia === d) || {};
+          return { dia: d, desayuno: c.desayuno || '', almuerzo: c.almuerzo || '', cena: c.cena || '', snacks: c.snacks || '', observaciones: c.observaciones || '' };
+        })
+      };
+      p.planesNutricionales.push(nuevo);
+      planActivoId = nuevo.id;
+      guardarDatos(); refrescar();
+      aviso('Plan importado. Revisa la tabla por día y ajusta lo que haga falta.');
+    }
+  });
+}
+
 function editarDiaPlan(idPlan, dia){
   const plan = perfil().planesNutricionales.find(x => x.id === idPlan);
   plan.comidas = plan.comidas || [];
@@ -1585,11 +1842,6 @@ function programarRecordatorios(){
    CONFIGURACIÓN, RESPALDO Y PIN
    ===================================================================== */
 RENDER.configuracion = function(){
-  const respaldo = localStorage.getItem(CLAVE_RESPALDO);
-  let marca = '—';
-  try{ if (respaldo) marca = new Date(JSON.parse(respaldo).marca).toLocaleString('es-CO'); }catch(e){}
-  const tamano = (localStorage.getItem(CLAVE) || '').length;
-
   $('#vista-configuracion').innerHTML = `
     <div class="tarjeta">
       <h2>⚙️ Configuración</h2>
@@ -1599,18 +1851,22 @@ RENDER.configuracion = function(){
         <div class="campo"><label for="cfgHora">Hora del recordatorio diario</label>
           <input id="cfgHora" type="time" value="${esc(DB.config.horaResumen || '08:00')}"></div>
       </div>
-      <div class="campo"><label><input type="checkbox" id="cfgRespaldo" style="width:auto" ${DB.config.respaldoAutomatico ? 'checked' : ''}>
-        Guardar una copia de seguridad automática en este navegador</label></div>
       <div class="fila">
         <button class="btn-primario" onclick="guardarConfig()">Guardar cambios</button>
         <button onclick="pedirPermisoNotificaciones()">🔔 Activar notificaciones</button>
       </div>
-      <p class="tenue" style="margin-top:.6rem">Última copia automática: ${esc(marca)} · Datos guardados: ${(tamano/1024).toFixed(1)} KB</p>
+    </div>
+
+    <div class="tarjeta">
+      <h3>☁️ Cuenta y sincronización</h3>
+      <p class="tenue">Sesión iniciada como <strong>${esc(usuarioActual ? usuarioActual.email : '')}</strong>.
+        Los datos se guardan en la nube y se sincronizan al instante con cualquier dispositivo que inicie sesión con esta misma cuenta.</p>
+      <button class="btn-peligro" onclick="cerrarSesion()">Cerrar sesión</button>
     </div>
 
     <div class="tarjeta">
       <h3>🔐 PIN de acceso</h3>
-      <p class="tenue">Los datos de salud se guardan solo en este dispositivo. El PIN evita que alguien abra la app por accidente; no cifra la información.</p>
+      <p class="tenue">El PIN es un bloqueo rápido para este dispositivo (evita que alguien abra la app por accidente); no reemplaza el inicio de sesión ni cifra la información.</p>
       <div class="fila">
         <button class="btn-primario" onclick="configurarPin()">${DB.config.pinHash ? 'Cambiar PIN' : 'Crear PIN'}</button>
         ${DB.config.pinHash ? '<button class="btn-peligro" onclick="quitarPin()">Quitar PIN</button>' : ''}
@@ -1618,13 +1874,12 @@ RENDER.configuracion = function(){
     </div>
 
     <div class="tarjeta">
-      <h3>💾 Respaldo</h3>
-      <p class="tenue">Exporta un archivo JSON con todos los perfiles. Guárdalo en un lugar seguro: contiene información de salud.</p>
+      <h3>💾 Copia de respaldo</h3>
+      <p class="tenue">Exporta un archivo JSON con todos los perfiles, por si necesitas guardarlo aparte. Al importar, reemplaza los datos de la cuenta en todos los dispositivos.</p>
       <div class="fila">
         <button class="btn-verde" onclick="exportarJSON()">Exportar datos</button>
         <button onclick="$('#archivoImportar').click()">Importar datos</button>
         <input type="file" id="archivoImportar" accept="application/json" style="display:none" onchange="importarJSON(this)">
-        ${respaldo ? '<button onclick="restaurarRespaldo()">Restaurar última copia automática</button>' : ''}
       </div>
     </div>
 
@@ -1651,7 +1906,6 @@ RENDER.configuracion = function(){
 function guardarConfig(){
   DB.config.diasAlertaExamen = Number(val('cfgDias')) || 15;
   DB.config.horaResumen = val('cfgHora') || '08:00';
-  DB.config.respaldoAutomatico = chk('cfgRespaldo');
   guardarDatos(); aviso('Configuración guardada.');
 }
 function exportarJSON(){
@@ -1673,31 +1927,14 @@ function importarJSON(input){
     catch(e){ aviso('El archivo no es un JSON válido.'); return; }
     if (!datos || !Array.isArray(datos.perfiles)){ aviso('El archivo no tiene el formato de Salud Familiar.'); return; }
     abrirModal('Importar datos', `<p>El archivo contiene <strong>${datos.perfiles.length} perfil(es)</strong>.</p>
-      <p class="mensaje-error">Al continuar se reemplazan todos los datos actuales de este navegador. Exporta antes si quieres conservarlos.</p>`, () => {
-      DB = datos;
-      cargarDesdeObjeto();
-      cerrarModal(); pintarSelectorPerfiles(); router();
-      aviso('Datos importados.');
+      <p class="mensaje-error">Al continuar se reemplazan todos los datos actuales de la cuenta, en todos los dispositivos sincronizados.</p>`, () => {
+      docFamilia().set(datos)
+        .then(() => { cerrarModal(); aviso('Datos importados y sincronizados.'); })
+        .catch(() => aviso('No se pudo importar: revisa tu conexión a internet.'));
     }, { textoGuardar: 'Reemplazar todo' });
     input.value = '';
   };
   lector.readAsText(archivo);
-}
-function cargarDesdeObjeto(){
-  localStorage.setItem(CLAVE, JSON.stringify(DB));
-  cargarDatos();
-  programarRecordatorios();
-}
-function restaurarRespaldo(){
-  const r = localStorage.getItem(CLAVE_RESPALDO);
-  if (!r) return;
-  abrirModal('Restaurar copia', '<p class="mensaje-error">Se reemplazarán los datos actuales por la última copia automática.</p>', () => {
-    try{
-      DB = JSON.parse(r).datos;
-      cargarDesdeObjeto();
-      cerrarModal(); pintarSelectorPerfiles(); router(); aviso('Copia restaurada.');
-    }catch(e){ aviso('La copia está dañada.'); }
-  }, { textoGuardar: 'Restaurar' });
 }
 
 /* PIN: se guarda un hash simple con btoa; sirve como barrera básica, no como cifrado. */
@@ -1736,6 +1973,70 @@ $('#btnEntrarPin').addEventListener('click', verificarPin);
 $('#entradaPin').addEventListener('keydown', e => { if (e.key === 'Enter') verificarPin(); });
 
 /* =====================================================================
+   CUENTA: inicio de sesión, registro y cierre de sesión
+   ===================================================================== */
+const MENSAJES_FIREBASE = {
+  'auth/invalid-email': 'El correo no es válido.',
+  'auth/missing-password': 'Escribe una contraseña.',
+  'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+  'auth/email-already-in-use': 'Ya existe una cuenta con ese correo. Usa "Iniciar sesión".',
+  'auth/user-not-found': 'No existe una cuenta con ese correo.',
+  'auth/wrong-password': 'La contraseña es incorrecta.',
+  'auth/invalid-credential': 'Correo o contraseña incorrectos.',
+  'auth/too-many-requests': 'Demasiados intentos. Espera un momento e intenta de nuevo.',
+  'auth/network-request-failed': 'No hay conexión a internet.',
+  'auth/invalid-api-key': 'Falta configurar Firebase: revisa firebaseConfig en el código.'
+};
+function mostrarErrorLogin(msg){
+  $('#errorLogin').textContent = msg;
+  $('#errorLogin').style.display = 'block';
+}
+function credencialesLogin(){
+  const correo = val('loginCorreo'), clave = $('#loginClave').value;
+  if (!correo || !clave){ mostrarErrorLogin('Escribe correo y contraseña.'); return null; }
+  $('#errorLogin').style.display = 'none';
+  return { correo, clave };
+}
+$('#btnEntrarSesion').addEventListener('click', () => {
+  const c = credencialesLogin(); if (!c) return;
+  auth.signInWithEmailAndPassword(c.correo, c.clave)
+    .catch(e => mostrarErrorLogin(MENSAJES_FIREBASE[e.code] || 'No se pudo iniciar sesión. Intenta de nuevo.'));
+});
+$('#btnCrearCuenta').addEventListener('click', () => {
+  const c = credencialesLogin(); if (!c) return;
+  auth.createUserWithEmailAndPassword(c.correo, c.clave)
+    .catch(e => mostrarErrorLogin(MENSAJES_FIREBASE[e.code] || 'No se pudo crear la cuenta. Intenta de nuevo.'));
+});
+$('#linkOlvide').addEventListener('click', () => {
+  const correo = val('loginCorreo');
+  if (!correo){ mostrarErrorLogin('Escribe tu correo arriba y toca el enlace de nuevo.'); return; }
+  auth.sendPasswordResetEmail(correo)
+    .then(() => aviso('Te enviamos un correo para restablecer la contraseña.'))
+    .catch(e => mostrarErrorLogin(MENSAJES_FIREBASE[e.code] || 'No se pudo enviar el correo.'));
+});
+$('#loginClave').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btnEntrarSesion').click(); });
+function cerrarSesion(){
+  abrirModal('Cerrar sesión', '<p>Volverás a la pantalla de inicio de sesión. Los datos siguen guardados en la nube.</p>', () => {
+    cerrarModal(); auth.signOut();
+  }, { textoGuardar: 'Cerrar sesión' });
+}
+auth.onAuthStateChanged(user => {
+  usuarioActual = user;
+  if (user){
+    $('#pantallaLogin').classList.remove('abierta');
+    $('#loginClave').value = '';
+    suscribirDatos();
+  }else{
+    if (dejarDeEscuchar){ dejarDeEscuchar(); dejarDeEscuchar = null; }
+    appIniciada = false;
+    clearInterval(temporizadorRecordatorios);
+    $('#pantallaPin').classList.remove('abierta');
+    $('#pantallaLogin').classList.add('abierta');
+    setTimeout(() => $('#loginCorreo').focus(), 100);
+  }
+});
+
+/* =====================================================================
    PWA: service worker e instalación
    ===================================================================== */
 if ('serviceWorker' in navigator){
@@ -1764,13 +2065,8 @@ function iniciarApp(){
   router();
   programarRecordatorios();
 }
-cargarDatos();
-if (DB.config.pinHash){
-  $('#pantallaPin').classList.add('abierta');
-  setTimeout(() => $('#entradaPin').focus(), 100);
-}else{
-  iniciarApp();
-}
+// El arranque real ocurre en auth.onAuthStateChanged (arriba): muestra el
+// inicio de sesión si no hay usuario, o se suscribe a los datos si ya lo hay.
 
 </script>
 </body>
